@@ -1,0 +1,7 @@
+{
+  "name": "frontend-build",
+  "version": "1.0.0",
+  "dependencies": {
+    "webpack": "^5.0.0"
+  }
+}

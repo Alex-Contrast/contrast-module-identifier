@@ -1,0 +1,6 @@
+[source]
+url = "https://pypi.org/simple"
+
+[packages]
+django = ">=4.2"
+celery = "*"

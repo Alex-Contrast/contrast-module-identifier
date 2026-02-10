@@ -1,0 +1,11 @@
+<?xml version="1.0"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0">
+    <groupId>com.acme</groupId>
+    <artifactId>monolith</artifactId>
+    <packaging>pom</packaging>
+    <modules>
+        <module>services/order-api</module>
+        <module>services/notification-worker</module>
+        <module>test/integration-tests</module>
+    </modules>
+</project>

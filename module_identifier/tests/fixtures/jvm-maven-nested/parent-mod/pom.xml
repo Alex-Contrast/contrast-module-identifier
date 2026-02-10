@@ -1,0 +1,10 @@
+<?xml version="1.0"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0">
+    <groupId>com.acme</groupId>
+    <artifactId>parent-mod</artifactId>
+    <packaging>pom</packaging>
+    <modules>
+        <module>child-a</module>
+        <module>child-b</module>
+    </modules>
+</project>

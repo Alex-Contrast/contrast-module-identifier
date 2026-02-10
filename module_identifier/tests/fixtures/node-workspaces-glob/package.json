@@ -1,0 +1,5 @@
+{
+  "name": "glob-mono",
+  "private": true,
+  "workspaces": ["packages/*"]
+}

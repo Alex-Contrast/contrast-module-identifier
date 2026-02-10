@@ -1,0 +1,9 @@
+<?xml version="1.0"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0">
+    <groupId>com.acme</groupId>
+    <artifactId>mono</artifactId>
+    <packaging>pom</packaging>
+    <modules>
+        <module>backend</module>
+    </modules>
+</project>

@@ -1,0 +1,8 @@
+{
+  "name": "acme/payment-gateway",
+  "type": "project",
+  "require": {
+    "php": ">=8.1",
+    "laravel/framework": "^10.0"
+  }
+}
