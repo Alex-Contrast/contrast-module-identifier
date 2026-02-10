@@ -14,7 +14,9 @@ discover_modules(repo)          # scan repo for modules (pom.xml, package.json, 
 **Three-layer approach:**
 1. **Deterministic discovery** — filesystem scan + manifest parsing. Finds modules by ecosystem (Java, Node, Python, Go, .NET, PHP). Extracts names from pom.xml, package.json, go.mod, etc.
 2. **Deterministic scoring** — Jaccard token similarity + language alignment. Fetches org app list once via MCP, scores locally. `contrast_security.yaml` overrides manifest names when present.
-3. **LLM fallback** — (not yet built) for modules where scoring falls below threshold.
+3. **LLM fallback** for modules where scoring falls below threshold.
+   - POC here (thank you Jacob): https://github.com/JacobMagesHaskinsContrast/contrast-app-identifier
+   - Jira: https://contrast.atlassian.net/browse/AIML-451
 
 ## Usage
 
