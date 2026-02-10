@@ -83,3 +83,7 @@ class DiscoveredModule(BaseModel):
     path: str = Field(description="Relative path from repo root to the module directory")
     manifest: Manifest = Field(description="The manifest file that identified this module")
     ecosystem: Ecosystem = Field(description="The ecosystem/language of this module")
+    contrast_app_name: Optional[str] = Field(
+        default=None,
+        description="Application name from contrast_security.yaml if present in module directory",
+    )

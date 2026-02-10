@@ -60,6 +60,26 @@ class TestExtractSearchTerm:
         m = _module("MyApp", Manifest.PACKAGES_CONFIG, Ecosystem.DOTNET)
         assert extract_search_term(m) == "MyApp"
 
+    def test_contrast_app_name_takes_priority(self):
+        m = DiscoveredModule(
+            name="com.example:employee-management",
+            path=".",
+            manifest=Manifest.POM_XML,
+            ecosystem=Ecosystem.JAVA,
+            contrast_app_name="alex-employee-management",
+        )
+        assert extract_search_term(m) == "alex-employee-management"
+
+    def test_contrast_app_name_none_falls_through(self):
+        m = DiscoveredModule(
+            name="com.example:employee-management",
+            path=".",
+            manifest=Manifest.POM_XML,
+            ecosystem=Ecosystem.JAVA,
+            contrast_app_name=None,
+        )
+        assert extract_search_term(m) == "employee-management"
+
 
 # --- Tokenization ---
 
@@ -146,11 +166,9 @@ class TestScoreCandidate:
 class TestResolveModule:
     def test_exact_match(self):
         m = _module("webgoat-server", Manifest.POM_XML, Ecosystem.JAVA)
+        apps = [AppCandidate("abc-123", "webgoat-server", "Java")]
 
-        def search(term):
-            return [AppCandidate("abc-123", "webgoat-server", "Java")]
-
-        result = resolve_module(m, search)
+        result = resolve_module(m, apps)
         assert result is not None
         assert result.app_id == "abc-123"
         assert result.app_name == "webgoat-server"
@@ -159,73 +177,56 @@ class TestResolveModule:
 
     def test_no_candidates(self):
         m = _module("nonexistent-app", Manifest.PACKAGE_JSON, Ecosystem.NODE)
-
-        def search(term):
-            return []
-
-        assert resolve_module(m, search) is None
+        assert resolve_module(m, []) is None
 
     def test_below_threshold(self):
         m = _module("order-api", Manifest.POM_XML, Ecosystem.JAVA)
-
-        def search(term):
-            return [AppCandidate("id1", "completely-different", "Java")]
-
-        assert resolve_module(m, search) is None
+        apps = [AppCandidate("id1", "completely-different", "Java")]
+        assert resolve_module(m, apps) is None
 
     def test_picks_best_candidate(self):
         m = _module("employee-management", Manifest.POM_XML, Ecosystem.JAVA)
+        apps = [
+            AppCandidate("id1", "alex-employee-management", "Java"),
+            AppCandidate("id2", "employee-management", "Java"),
+            AppCandidate("id3", "jacob-employee-management", "Java"),
+        ]
 
-        def search(term):
-            return [
-                AppCandidate("id1", "alex-employee-management", "Java"),
-                AppCandidate("id2", "employee-management", "Java"),
-                AppCandidate("id3", "jacob-employee-management", "Java"),
-            ]
-
-        result = resolve_module(m, search)
+        result = resolve_module(m, apps)
         assert result is not None
         assert result.app_id == "id2"
         assert result.confidence == 1.0
 
     def test_prefers_correct_language(self):
         m = _module("juice-shop", Manifest.PACKAGE_JSON, Ecosystem.NODE)
+        apps = [
+            AppCandidate("id1", "juice-shop", "Java"),
+            AppCandidate("id2", "juice-shop", "Node"),
+        ]
 
-        def search(term):
-            return [
-                AppCandidate("id1", "juice-shop", "Java"),
-                AppCandidate("id2", "juice-shop", "Node"),
-            ]
-
-        result = resolve_module(m, search)
+        result = resolve_module(m, apps)
         assert result is not None
         assert result.app_id == "id2"
         assert result.confidence == 1.0
 
     def test_maven_prefix_stripped(self):
-        """com.acme:order-api should search for 'order-api'."""
+        """com.acme:order-api should match against 'order-api'."""
         m = _module("com.acme:order-api", Manifest.POM_XML, Ecosystem.JAVA)
-        searched_terms = []
+        apps = [AppCandidate("id1", "order-api", "Java")]
 
-        def search(term):
-            searched_terms.append(term)
-            return [AppCandidate("id1", "order-api", "Java")]
-
-        result = resolve_module(m, search)
-        assert searched_terms == ["order-api"]
+        result = resolve_module(m, apps)
         assert result is not None
+        assert result.search_term == "order-api"
         assert result.confidence == 1.0
 
     def test_custom_threshold(self):
         m = _module("order-api", Manifest.POM_XML, Ecosystem.JAVA)
-
-        def search(term):
-            return [AppCandidate("id1", "alex-order-api", "Java")]
+        apps = [AppCandidate("id1", "alex-order-api", "Java")]
 
         # Default threshold (0.5) — should match
-        assert resolve_module(m, search, confidence_threshold=0.5) is not None
+        assert resolve_module(m, apps, confidence_threshold=0.5) is not None
         # High threshold — should not match
-        assert resolve_module(m, search, confidence_threshold=0.9) is None
+        assert resolve_module(m, apps, confidence_threshold=0.9) is None
 
 
 # --- resolve_modules ---
@@ -238,15 +239,12 @@ class TestResolveModules:
             _module("juice-shop", Manifest.PACKAGE_JSON, Ecosystem.NODE, path="frontend"),
             _module("unknown-thing", Manifest.GEMFILE, Ecosystem.RUBY, path="scripts"),
         ]
+        apps = [
+            AppCandidate("id1", "webgoat-server", "Java"),
+            AppCandidate("id2", "juice-shop", "Node"),
+        ]
 
-        def search(term):
-            apps = {
-                "webgoat-server": [AppCandidate("id1", "webgoat-server", "Java")],
-                "juice-shop": [AppCandidate("id2", "juice-shop", "Node")],
-            }
-            return apps.get(term, [])
-
-        result = resolve_modules(modules, search)
+        result = resolve_modules(modules, apps)
 
         assert len(result) == 3
         assert result["backend"] is not None
@@ -256,5 +254,5 @@ class TestResolveModules:
         assert result["scripts"] is None  # no match
 
     def test_empty_modules(self):
-        result = resolve_modules([], lambda t: [])
+        result = resolve_modules([], [])
         assert result == {}

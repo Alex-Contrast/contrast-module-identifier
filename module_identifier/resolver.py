@@ -5,7 +5,7 @@ Flow: extract search term → search Contrast → score candidates → pick best
 
 import re
 from dataclasses import dataclass
-from typing import Callable, Optional
+from typing import Optional
 
 from .models import DiscoveredModule, Ecosystem
 
@@ -33,7 +33,10 @@ class AppMatch:
 def extract_search_term(module: DiscoveredModule) -> str:
     """Extract a clean search term from a module name.
 
-    Strips ecosystem-specific prefixes/structure to get the most
+    If the module has a contrast_app_name (from contrast_security.yaml),
+    that takes priority — it's the Contrast identity.
+
+    Otherwise strips ecosystem-specific prefixes/structure to get the most
     searchable short name:
       - Maven:  "com.acme:order-api"         → "order-api"
       - Node:   "@scope/billing-api"          → "billing-api"
@@ -41,6 +44,9 @@ def extract_search_term(module: DiscoveredModule) -> str:
       - PHP:    "vendor/package"              → "package"
       - Others: returned as-is
     """
+    if module.contrast_app_name:
+        return module.contrast_app_name
+
     name = module.name
 
     # Maven — groupId:artifactId → artifactId
@@ -125,21 +131,18 @@ def score_candidate(
 
 # -- Resolver --
 
-# Type alias for the search function (injectable for testing)
-SearchFn = Callable[[str], list[AppCandidate]]
-
 
 def resolve_module(
     module: DiscoveredModule,
-    search_fn: SearchFn,
+    candidates: list[AppCandidate],
     confidence_threshold: float = 0.5,
 ) -> Optional[AppMatch]:
     """Resolve a single module to a Contrast app ID.
 
+    Scores the module against a pre-fetched list of all org apps.
     Returns None if no candidate meets the confidence threshold.
     """
     search_term = extract_search_term(module)
-    candidates = search_fn(search_term)
 
     if not candidates:
         return None
@@ -167,14 +170,15 @@ def resolve_module(
 
 def resolve_modules(
     modules: list[DiscoveredModule],
-    search_fn: SearchFn,
+    candidates: list[AppCandidate],
     confidence_threshold: float = 0.5,
 ) -> dict[str, Optional[AppMatch]]:
     """Resolve a list of discovered modules to Contrast app IDs.
 
+    Scores each module against the same pre-fetched candidate list.
     Returns {module.path: AppMatch or None} for every module.
     """
     return {
-        module.path: resolve_module(module, search_fn, confidence_threshold)
+        module.path: resolve_module(module, candidates, confidence_threshold)
         for module in modules
     }

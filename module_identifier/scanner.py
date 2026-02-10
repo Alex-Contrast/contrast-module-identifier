@@ -86,6 +86,9 @@ def _scan_directory(
         if eco not in found and (dir_path / manifest.value).is_file():
             found[eco] = manifest
 
+    # Check for contrast_security.yaml in this directory
+    contrast_app_name = _contrast_app_name(dir_path)
+
     # Build a DiscoveredModule for each ecosystem found in this directory
     for eco, manifest in found.items():
         rel_path = str(dir_path.relative_to(repo_root)) if dir_path != repo_root else "."
@@ -95,6 +98,7 @@ def _scan_directory(
             path=rel_path,
             manifest=manifest,
             ecosystem=eco,
+            contrast_app_name=contrast_app_name,
         ))
 
     # Recurse into subdirectories
@@ -104,6 +108,45 @@ def _scan_directory(
                 _scan_directory(child, repo_root, remaining_depth - 1, results)
     except PermissionError:
         pass
+
+
+_CONTRAST_YAML_NAMES = ("contrast_security.yaml", "contrast.yaml")
+
+
+def _contrast_app_name(dir_path: Path) -> Optional[str]:
+    """Extract application.name from contrast_security.yaml if present."""
+    for name in _CONTRAST_YAML_NAMES:
+        yaml_path = dir_path / name
+        if not yaml_path.is_file():
+            continue
+        try:
+            # Simple line-based parse — avoids adding a yaml dependency.
+            # Looking for:
+            #   application:
+            #     name: some-app-name
+            lines = yaml_path.read_text(encoding="utf-8").splitlines()
+            in_application = False
+            for line in lines:
+                stripped = line.strip()
+                if stripped == "application:" or stripped.startswith("application:"):
+                    # Check for inline: application: {name: foo}
+                    after = stripped[len("application:"):].strip()
+                    if after:
+                        # Inline value — not the block form we expect
+                        continue
+                    in_application = True
+                    continue
+                if in_application:
+                    if line.startswith((" ", "\t")):
+                        if stripped.startswith("name:"):
+                            val = stripped[len("name:"):].strip().strip("'\"")
+                            if val:
+                                return val
+                    else:
+                        in_application = False
+        except Exception:
+            continue
+    return None
 
 
 def _extract_name(dir_path: Path, manifest: Manifest) -> Optional[str]:

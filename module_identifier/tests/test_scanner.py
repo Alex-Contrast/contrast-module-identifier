@@ -10,6 +10,7 @@ from module_identifier.scanner import (
     SKIP_DIRS,
     discover_modules,
     _extract_name,
+    _contrast_app_name,
     _name_from_package_json,
     _name_from_pom_xml,
     _name_from_go_mod,
@@ -260,3 +261,109 @@ class TestDiscoverModules:
         node_modules = [m for m in modules if m.ecosystem == Ecosystem.NODE]
         assert len(node_modules) == 1
         assert node_modules[0].manifest == Manifest.PACKAGE_JSON
+
+    def test_no_contrast_yaml_means_none(self, tmp_repo):
+        (tmp_repo / "pom.xml").write_text("""<?xml version="1.0"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0">
+    <artifactId>my-app</artifactId>
+</project>""")
+        modules = discover_modules(tmp_repo)
+        assert modules[0].contrast_app_name is None
+
+    def test_contrast_yaml_attaches_to_module(self, tmp_repo):
+        (tmp_repo / "pom.xml").write_text("""<?xml version="1.0"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0">
+    <groupId>com.example</groupId>
+    <artifactId>employee-management</artifactId>
+</project>""")
+        (tmp_repo / "contrast_security.yaml").write_text(
+            "application:\n  name: alex-employee-management\n"
+        )
+        modules = discover_modules(tmp_repo)
+        assert modules[0].name == "com.example:employee-management"
+        assert modules[0].contrast_app_name == "alex-employee-management"
+
+    def test_contrast_yaml_only_applies_to_same_dir(self, tmp_repo):
+        # yaml at root, submodule in services/api
+        (tmp_repo / "pom.xml").write_text("""<?xml version="1.0"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0">
+    <artifactId>root</artifactId>
+</project>""")
+        (tmp_repo / "contrast_security.yaml").write_text(
+            "application:\n  name: root-app\n"
+        )
+        sub = tmp_repo / "services" / "api"
+        sub.mkdir(parents=True)
+        (sub / "package.json").write_text(json.dumps({"name": "api"}))
+        modules = discover_modules(tmp_repo)
+        root = [m for m in modules if m.path == "."][0]
+        api = [m for m in modules if m.path == "services/api"][0]
+        assert root.contrast_app_name == "root-app"
+        assert api.contrast_app_name is None
+
+
+# --- Contrast YAML parsing ---
+
+
+class TestContrastAppName:
+    def test_standard_format(self, tmp_repo):
+        (tmp_repo / "contrast_security.yaml").write_text(
+            "application:\n  name: my-app\n"
+        )
+        assert _contrast_app_name(tmp_repo) == "my-app"
+
+    def test_quoted_name(self, tmp_repo):
+        (tmp_repo / "contrast_security.yaml").write_text(
+            "application:\n  name: 'my-app'\n"
+        )
+        assert _contrast_app_name(tmp_repo) == "my-app"
+
+    def test_double_quoted_name(self, tmp_repo):
+        (tmp_repo / "contrast_security.yaml").write_text(
+            'application:\n  name: "my-app"\n'
+        )
+        assert _contrast_app_name(tmp_repo) == "my-app"
+
+    def test_contrast_yaml_alternate_name(self, tmp_repo):
+        (tmp_repo / "contrast.yaml").write_text(
+            "application:\n  name: alt-app\n"
+        )
+        assert _contrast_app_name(tmp_repo) == "alt-app"
+
+    def test_no_yaml_returns_none(self, tmp_repo):
+        assert _contrast_app_name(tmp_repo) is None
+
+    def test_yaml_without_application_block(self, tmp_repo):
+        (tmp_repo / "contrast_security.yaml").write_text(
+            "api:\n  url: https://example.com\n"
+        )
+        assert _contrast_app_name(tmp_repo) is None
+
+    def test_yaml_application_without_name(self, tmp_repo):
+        (tmp_repo / "contrast_security.yaml").write_text(
+            "application:\n  session_metadata: test\n"
+        )
+        assert _contrast_app_name(tmp_repo) is None
+
+    def test_real_world_format(self, tmp_repo):
+        """Matches the actual employee-management contrast_security.yaml."""
+        (tmp_repo / "contrast_security.yaml").write_text("""api:
+    url: https://teamserver.example.com/Contrast
+    api_key: some-key
+    service_key: some-svc-key
+    user_name: agent_user
+
+agent:
+    logger:
+        level: DEBUG
+    java:
+        standalone_app_name: alex-employee-management
+
+server:
+    name: alex-employee-management-server
+    environment: development
+
+application:
+    name: alex-employee-management
+""")
+        assert _contrast_app_name(tmp_repo) == "alex-employee-management"
