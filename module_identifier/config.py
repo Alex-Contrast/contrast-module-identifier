@@ -36,6 +36,13 @@ class ContrastConfig:
             org_id=os.environ["CONTRAST_ORG_ID"],
         )
 
+    def __repr__(self) -> str:
+        return (
+            f"ContrastConfig(host_name={self.host_name!r}, "
+            f"api_key='***', service_key='***', "
+            f"username={self.username!r}, org_id={self.org_id!r})"
+        )
+
     def as_env(self) -> dict[str, str]:
         """Return as env dict for passing to subprocess."""
         return {
