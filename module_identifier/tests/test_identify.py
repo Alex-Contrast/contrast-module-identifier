@@ -2,7 +2,11 @@
 
 from unittest.mock import AsyncMock, patch
 
+import pytest
+
+from module_identifier.config import ContrastConfig
 from module_identifier.identify import _best_deterministic_match, _is_ambiguous, identify_repo
+from module_identifier.llm import LLMConfig
 from module_identifier.models import DiscoveredModule, Ecosystem, Manifest
 from module_identifier.resolver import AppCandidate, AppMatch
 
@@ -13,6 +17,19 @@ def _module(name, manifest=Manifest.POM_XML, ecosystem=Ecosystem.JAVA, path=".")
 
 def _candidate(name, app_id="app-1", language="Java"):
     return AppCandidate(app_id=app_id, name=name, language=language)
+
+
+@pytest.fixture
+def config():
+    return ContrastConfig(
+        host_name="h", api_key="k", service_key="s",
+        username="u", org_id="o",
+    )
+
+
+@pytest.fixture
+def llm_config():
+    return LLMConfig(provider="anthropic", anthropic_api_key="test")
 
 
 # --- _best_deterministic_match ---
@@ -92,16 +109,11 @@ def _mock_mcp(candidates):
 class TestIdentifyRepo:
     @patch("module_identifier.identify.ContrastMCP")
     @patch("module_identifier.identify.discover_modules")
-    async def test_exact_match_returns_app(self, mock_discover, mock_mcp_cls, tmp_path):
+    async def test_exact_match_returns_app(self, mock_discover, mock_mcp_cls, tmp_path, config, llm_config):
         mock_discover.return_value = [_module("order-api")]
         mock_mcp_cls.return_value = _mock_mcp([_candidate("order-api")])
 
-        from module_identifier.config import ContrastConfig
-        config = ContrastConfig(
-            host_name="h", api_key="k", service_key="s",
-            username="u", org_id="o",
-        )
-        result = await identify_repo(tmp_path, config)
+        result = await identify_repo(tmp_path, config, llm_config)
 
         assert result is not None
         assert result.app_id == "app-1"
@@ -109,70 +121,53 @@ class TestIdentifyRepo:
         assert result.confidence == 1.0
         assert result.source == "deterministic"
 
+    @patch("module_identifier.llm.agent.resolve_module")
     @patch("module_identifier.identify.ContrastMCP")
     @patch("module_identifier.identify.discover_modules")
-    async def test_below_threshold_no_llm_returns_none(self, mock_discover, mock_mcp_cls, tmp_path):
+    async def test_below_threshold_returns_llm(self, mock_discover, mock_mcp_cls, mock_llm, tmp_path, config, llm_config):
         mock_discover.return_value = [_module("xyz-service")]
         mock_mcp_cls.return_value = _mock_mcp([_candidate("abc-app")])
+        mock_llm.return_value = None
 
-        from module_identifier.config import ContrastConfig
-        config = ContrastConfig(
-            host_name="h", api_key="k", service_key="s",
-            username="u", org_id="o",
-        )
-        result = await identify_repo(tmp_path, config)
+        result = await identify_repo(tmp_path, config, llm_config)
         assert result is None
+        mock_llm.assert_called_once()
 
     @patch("module_identifier.identify.ContrastMCP")
     @patch("module_identifier.identify.discover_modules")
-    async def test_no_modules_returns_none(self, mock_discover, mock_mcp_cls, tmp_path):
+    async def test_no_modules_returns_none(self, mock_discover, mock_mcp_cls, tmp_path, config, llm_config):
         mock_discover.return_value = []
         mock_mcp_cls.return_value = _mock_mcp([_candidate("order-api")])
 
-        from module_identifier.config import ContrastConfig
-        config = ContrastConfig(
-            host_name="h", api_key="k", service_key="s",
-            username="u", org_id="o",
-        )
-        result = await identify_repo(tmp_path, config)
+        result = await identify_repo(tmp_path, config, llm_config)
         assert result is None
 
     @patch("module_identifier.identify.ContrastMCP")
     @patch("module_identifier.identify.discover_modules")
-    async def test_no_candidates_returns_none(self, mock_discover, mock_mcp_cls, tmp_path):
+    async def test_no_candidates_returns_none(self, mock_discover, mock_mcp_cls, tmp_path, config, llm_config):
         mock_discover.return_value = [_module("order-api")]
         mock_mcp_cls.return_value = _mock_mcp([])
 
-        from module_identifier.config import ContrastConfig
-        config = ContrastConfig(
-            host_name="h", api_key="k", service_key="s",
-            username="u", org_id="o",
-        )
-        result = await identify_repo(tmp_path, config)
+        result = await identify_repo(tmp_path, config, llm_config)
         assert result is None
 
     @patch("module_identifier.identify.ContrastMCP")
     @patch("module_identifier.identify.discover_modules")
-    async def test_picks_best_across_modules(self, mock_discover, mock_mcp_cls, tmp_path):
+    async def test_picks_best_across_modules(self, mock_discover, mock_mcp_cls, tmp_path, config, llm_config):
         mock_discover.return_value = [
             _module("frontend", Manifest.PACKAGE_JSON, Ecosystem.NODE, path="ui"),
             _module("order-api", path="backend"),
         ]
         mock_mcp_cls.return_value = _mock_mcp([_candidate("order-api")])
 
-        from module_identifier.config import ContrastConfig
-        config = ContrastConfig(
-            host_name="h", api_key="k", service_key="s",
-            username="u", org_id="o",
-        )
-        result = await identify_repo(tmp_path, config)
+        result = await identify_repo(tmp_path, config, llm_config)
         assert result is not None
         assert result.app_name == "order-api"
         assert result.module.path == "backend"
 
     @patch("module_identifier.identify.ContrastMCP")
     @patch("module_identifier.identify.discover_modules")
-    async def test_custom_threshold(self, mock_discover, mock_mcp_cls, tmp_path):
+    async def test_custom_threshold(self, mock_discover, mock_mcp_cls, tmp_path, config, llm_config):
         """A match at 0.8 passes default 0.7 threshold but fails 0.9."""
         mock_discover.return_value = [_module("order-api")]
         # Exact name + language match = 1.0, so use a partial match
@@ -180,25 +175,20 @@ class TestIdentifyRepo:
             _candidate("order-api-service", language="Java"),
         ])
 
-        from module_identifier.config import ContrastConfig
-        config = ContrastConfig(
-            host_name="h", api_key="k", service_key="s",
-            username="u", org_id="o",
-        )
-
-        # Default threshold (0.7) — partial match should pass
-        result = await identify_repo(tmp_path, config, confidence_threshold=0.3)
+        # Low threshold — partial match should pass
+        result = await identify_repo(tmp_path, config, llm_config, confidence_threshold=0.3)
         assert result is not None
 
-        # High threshold — same match should fail
-        result = await identify_repo(tmp_path, config, confidence_threshold=0.99)
+        # High threshold — same match should fail (falls to LLM)
+        with patch("module_identifier.llm.agent.resolve_module", return_value=None):
+            result = await identify_repo(tmp_path, config, llm_config, confidence_threshold=0.99)
         assert result is None
 
     @patch("module_identifier.llm.agent.resolve_module")
     @patch("module_identifier.identify.ContrastMCP")
     @patch("module_identifier.identify.discover_modules")
-    async def test_llm_fallback(self, mock_discover, mock_mcp_cls, mock_llm, tmp_path):
-        """When below threshold and llm_config provided, LLM is called."""
+    async def test_llm_fallback(self, mock_discover, mock_mcp_cls, mock_llm, tmp_path, config, llm_config):
+        """When below threshold, LLM is called."""
         mock_discover.return_value = [_module("xyz-service")]
         mock_mcp_cls.return_value = _mock_mcp([_candidate("abc-app")])
 
@@ -210,15 +200,7 @@ class TestIdentifyRepo:
             reasoning="Found via README",
         )
 
-        from module_identifier.config import ContrastConfig
-        from module_identifier.llm import LLMConfig
-        config = ContrastConfig(
-            host_name="h", api_key="k", service_key="s",
-            username="u", org_id="o",
-        )
-        llm_config = LLMConfig(provider="anthropic", anthropic_api_key="test")
-
-        result = await identify_repo(tmp_path, config, llm_config=llm_config)
+        result = await identify_repo(tmp_path, config, llm_config)
         assert result is not None
         assert result.app_id == "app-99"
         assert result.app_name == "XYZ Service"
@@ -229,27 +211,19 @@ class TestIdentifyRepo:
     @patch("module_identifier.llm.agent.resolve_module")
     @patch("module_identifier.identify.ContrastMCP")
     @patch("module_identifier.identify.discover_modules")
-    async def test_llm_not_found_returns_none(self, mock_discover, mock_mcp_cls, mock_llm, tmp_path):
+    async def test_llm_not_found_returns_none(self, mock_discover, mock_mcp_cls, mock_llm, tmp_path, config, llm_config):
         """LLM returning None (NOT_FOUND) means no match."""
         mock_discover.return_value = [_module("xyz-service")]
         mock_mcp_cls.return_value = _mock_mcp([_candidate("abc-app")])
         mock_llm.return_value = None
 
-        from module_identifier.config import ContrastConfig
-        from module_identifier.llm import LLMConfig
-        config = ContrastConfig(
-            host_name="h", api_key="k", service_key="s",
-            username="u", org_id="o",
-        )
-        llm_config = LLMConfig(provider="anthropic", anthropic_api_key="test")
-
-        result = await identify_repo(tmp_path, config, llm_config=llm_config)
+        result = await identify_repo(tmp_path, config, llm_config)
         assert result is None
 
     @patch("module_identifier.llm.agent.resolve_module")
     @patch("module_identifier.identify.ContrastMCP")
     @patch("module_identifier.identify.discover_modules")
-    async def test_ambiguous_triggers_llm(self, mock_discover, mock_mcp_cls, mock_llm, tmp_path):
+    async def test_ambiguous_triggers_llm(self, mock_discover, mock_mcp_cls, mock_llm, tmp_path, config, llm_config):
         """employee-management case: exact match exists but so does a prefixed variant."""
         mock_discover.return_value = [_module("employee-management")]
         mock_mcp_cls.return_value = _mock_mcp([
@@ -265,42 +239,30 @@ class TestIdentifyRepo:
             reasoning="README says alex-employee-management",
         )
 
-        from module_identifier.config import ContrastConfig
-        from module_identifier.llm import LLMConfig
-        config = ContrastConfig(
-            host_name="h", api_key="k", service_key="s",
-            username="u", org_id="o",
-        )
-        llm_config = LLMConfig(provider="anthropic", anthropic_api_key="test")
-
-        result = await identify_repo(tmp_path, config, llm_config=llm_config)
+        result = await identify_repo(tmp_path, config, llm_config)
         assert result is not None
         assert result.app_id == "correct"
         assert result.source == "llm"
         mock_llm.assert_called_once()
 
+    @patch("module_identifier.llm.agent.resolve_module")
     @patch("module_identifier.identify.ContrastMCP")
     @patch("module_identifier.identify.discover_modules")
-    async def test_ambiguous_no_llm_returns_none(self, mock_discover, mock_mcp_cls, tmp_path):
-        """Ambiguous match with no LLM config returns None (can't disambiguate)."""
+    async def test_ambiguous_llm_not_found(self, mock_discover, mock_mcp_cls, mock_llm, tmp_path, config, llm_config):
+        """Ambiguous match where LLM also can't decide returns None."""
         mock_discover.return_value = [_module("employee-management")]
         mock_mcp_cls.return_value = _mock_mcp([
             _candidate("employee-management", app_id="a1"),
             _candidate("alex-employee-management", app_id="a2"),
         ])
+        mock_llm.return_value = None
 
-        from module_identifier.config import ContrastConfig
-        config = ContrastConfig(
-            host_name="h", api_key="k", service_key="s",
-            username="u", org_id="o",
-        )
-
-        result = await identify_repo(tmp_path, config)
+        result = await identify_repo(tmp_path, config, llm_config)
         assert result is None
 
     @patch("module_identifier.identify.ContrastMCP")
     @patch("module_identifier.identify.discover_modules")
-    async def test_contrast_yaml_skips_ambiguity(self, mock_discover, mock_mcp_cls, tmp_path):
+    async def test_contrast_yaml_skips_ambiguity(self, mock_discover, mock_mcp_cls, tmp_path, config, llm_config):
         """contrast_security.yaml match is trusted — no ambiguity check."""
         mock_discover.return_value = [
             DiscoveredModule(
@@ -313,13 +275,7 @@ class TestIdentifyRepo:
             _candidate("alex-employee-management", app_id="correct"),
         ])
 
-        from module_identifier.config import ContrastConfig
-        config = ContrastConfig(
-            host_name="h", api_key="k", service_key="s",
-            username="u", org_id="o",
-        )
-
-        result = await identify_repo(tmp_path, config)
+        result = await identify_repo(tmp_path, config, llm_config)
         assert result is not None
         assert result.app_id == "correct"
         assert result.app_name == "alex-employee-management"

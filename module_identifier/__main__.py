@@ -71,14 +71,11 @@ def main():
         print(f"Contrast config error: {e}", file=sys.stderr)
         sys.exit(1)
 
-    # LLM config: required for GA pipeline, optional for EA --single
-    llm_config = None
     try:
         llm_config = LLMConfig.from_env()
     except ValueError as e:
-        if not args.single:
-            print(f"LLM config error: {e}", file=sys.stderr)
-            sys.exit(1)
+        print(f"LLM config error: {e}", file=sys.stderr)
+        sys.exit(1)
 
     t0 = time.time()
 

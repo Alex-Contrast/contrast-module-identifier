@@ -9,7 +9,7 @@ identify_repo(repo)
     ├── discover_modules(depth=2)     # find modules (pom.xml, package.json, etc.)
     ├── resolve_modules(apps)         # score all modules against Contrast app list
     ├── pick best match               # highest confidence wins
-    └── LLM fallback (optional)       # if below threshold, agent investigates
+    └── LLM fallback                  # if below threshold or ambiguous, agent investigates
         → {app_id, app_name, confidence}
 ```
 
@@ -25,9 +25,12 @@ import asyncio
 from module_identifier.config import ContrastConfig
 from module_identifier.identify import identify_repo
 
+from module_identifier.llm import LLMConfig
+
 async def main():
     config = ContrastConfig.from_env()
-    match = await identify_repo("/path/to/repo", config)
+    llm_config = LLMConfig.from_env()
+    match = await identify_repo("/path/to/repo", config, llm_config)
 
     if match:
         print(f"{match.app_name} ({match.app_id})")

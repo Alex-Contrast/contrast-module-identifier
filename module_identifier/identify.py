@@ -1,7 +1,7 @@
 """EA entry point: identify which Contrast application corresponds to a repository.
 
 Discovers modules, scores all against the Contrast org's app list,
-and returns the single best match. Optional LLM fallback for low-confidence results.
+and returns the single best match. LLM fallback for low-confidence or ambiguous results.
 """
 
 import logging
@@ -77,7 +77,7 @@ def _is_ambiguous(
 async def identify_repo(
     repo_path: str | Path,
     config: ContrastConfig,
-    llm_config: "LLMConfig | None" = None,
+    llm_config: "LLMConfig",
     jar_path: str | None = None,
     confidence_threshold: float = DEFAULT_THRESHOLD,
 ) -> Optional[AppMatch]:
@@ -89,7 +89,7 @@ async def identify_repo(
     Args:
         repo_path: Path to repository.
         config: Contrast Security credentials.
-        llm_config: LLM provider config. If None, no LLM fallback.
+        llm_config: LLM provider configuration.
         jar_path: Path to mcp-contrast jar (falls back to Docker).
         confidence_threshold: Minimum confidence (default 0.7).
 

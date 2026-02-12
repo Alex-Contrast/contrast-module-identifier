@@ -9,7 +9,7 @@ This is the "Module ↔ App Name" linking strategy in Shane's Convergence of Sou
 Three-layer pipeline:
 1. **Discovery** — filesystem scan + manifest parsing across 7 ecosystems
 2. **Deterministic scoring** — Jaccard token similarity + language alignment
-3. **LLM fallback** — Pydantic AI agent with MCP tools (optional, for low-confidence matches)
+3. **LLM fallback** — Pydantic AI agent with MCP tools for low-confidence or ambiguous matches
 
 ## Quick Reference
 
