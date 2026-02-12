@@ -142,30 +142,32 @@ async def identify_repo(
         return best
 
     # 5. LLM fallback (below threshold OR ambiguous)
-    if llm_config:
-        from .llm.agent import resolve_module as llm_resolve
+    # TODO: only the single best module is sent to LLM. In monorepos where a different
+    # module is the true match but scored 0, the LLM investigates the wrong one.
+    # Acceptable for EA (single app per repo); revisit for GA.
+    from .llm.agent import resolve_module as llm_resolve
 
-        target = best.module if best else modules[0]
-        log.info("LLM fallback on: %s (%s)", target.name, target.path)
+    target = best.module if best else modules[0]
+    log.info("LLM fallback on: %s (%s)", target.name, target.path)
 
-        llm_match = await llm_resolve(
+    llm_match = await llm_resolve(
+        module=target,
+        candidates=candidates,
+        llm_config=llm_config,
+        contrast_config=config,
+        repo_path=str(repo_path),
+        jar_path=jar_path,
+    )
+
+    if llm_match:
+        return AppMatch(
             module=target,
-            candidates=candidates,
-            llm_config=llm_config,
-            contrast_config=config,
-            repo_path=str(repo_path),
-            jar_path=jar_path,
+            app_id=llm_match.application_id,
+            app_name=llm_match.application_name,
+            confidence=_LLM_CONFIDENCE_MAP[llm_match.confidence],
+            search_term=extract_search_term(target),
+            source="llm",
         )
-
-        if llm_match:
-            return AppMatch(
-                module=target,
-                app_id=llm_match.application_id,
-                app_name=llm_match.application_name,
-                confidence=_LLM_CONFIDENCE_MAP.get(llm_match.confidence, 0.7),
-                search_term=extract_search_term(target),
-                source="llm",
-            )
 
     # No confident match
     return None

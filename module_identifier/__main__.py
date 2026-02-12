@@ -31,8 +31,8 @@ def main():
     parser.add_argument(
         "--threshold",
         type=float,
-        default=0.5,
-        help="Confidence threshold for deterministic matching (default: 0.5)",
+        default=None,
+        help="Confidence threshold (default: 0.7 for --single, 0.5 for module-level)",
     )
     parser.add_argument(
         "--depth",
@@ -80,11 +80,12 @@ def main():
     t0 = time.time()
 
     if args.single:
+        threshold = args.threshold if args.threshold is not None else 0.7
         match = asyncio.run(identify_repo(
             repo_path=repo_path,
             config=contrast_config,
             llm_config=llm_config,
-            confidence_threshold=args.threshold,
+            confidence_threshold=threshold,
         ))
         elapsed_ms = (time.time() - t0) * 1000
 
@@ -97,11 +98,12 @@ def main():
             "execution_time_ms": round(elapsed_ms, 1),
         }
     else:
+        threshold = args.threshold if args.threshold is not None else 0.5
         result = asyncio.run(run(
             repo_path=repo_path,
             config=contrast_config,
             llm_config=llm_config,
-            confidence_threshold=args.threshold,
+            confidence_threshold=threshold,
             depth=args.depth,
         ))
         elapsed_ms = (time.time() - t0) * 1000
