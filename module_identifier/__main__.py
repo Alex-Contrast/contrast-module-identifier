@@ -11,6 +11,7 @@ from pathlib import Path
 from dotenv import load_dotenv
 
 from .config import ContrastConfig
+from .identify import identify_repo
 from .llm import LLMConfig
 from .pipeline import run
 
@@ -45,6 +46,11 @@ def main():
         help="Enable debug logging",
     )
     parser.add_argument(
+        "--single",
+        action="store_true",
+        help="EA mode: resolve repo to a single app_id (default: module-level)",
+    )
+    parser.add_argument(
         "-o", "--output",
         help="Write JSON output to file instead of stdout",
     )
@@ -65,46 +71,68 @@ def main():
         print(f"Contrast config error: {e}", file=sys.stderr)
         sys.exit(1)
 
+    # LLM config: required for GA pipeline, optional for EA --single
+    llm_config = None
     try:
         llm_config = LLMConfig.from_env()
     except ValueError as e:
-        print(f"LLM config error: {e}", file=sys.stderr)
-        sys.exit(1)
+        if not args.single:
+            print(f"LLM config error: {e}", file=sys.stderr)
+            sys.exit(1)
 
     t0 = time.time()
-    result = asyncio.run(run(
-        repo_path=repo_path,
-        config=contrast_config,
-        llm_config=llm_config,
-        confidence_threshold=args.threshold,
-        depth=args.depth,
-    ))
-    elapsed_ms = (time.time() - t0) * 1000
 
-    output = {
-        "repo_path": repo_path,
-        "total_modules": result.total,
-        "deterministic_matched": {
-            path: {
-                "app_id": m.app_id,
-                "app_name": m.app_name,
-                "confidence": m.confidence,
-                "search_term": m.search_term,
-            }
-            for path, m in result.matched.items()
-        },
-        "llm_matched": {
-            path: {
-                "app_id": m.application_id,
-                "app_name": m.application_name,
-                "confidence": m.confidence,
-                "reasoning": m.reasoning,
-            }
-            for path, m in result.llm_matched.items()
-        },
-        "unmatched": result.unmatched,
-        "execution_time_ms": round(elapsed_ms, 1),
-    }
+    if args.single:
+        match = asyncio.run(identify_repo(
+            repo_path=repo_path,
+            config=contrast_config,
+            llm_config=llm_config,
+            confidence_threshold=args.threshold,
+        ))
+        elapsed_ms = (time.time() - t0) * 1000
+
+        output = {
+            "repo_path": repo_path,
+            "app_id": match.app_id if match else None,
+            "app_name": match.app_name if match else None,
+            "confidence": match.confidence if match else None,
+            "source": match.source if match else None,
+            "execution_time_ms": round(elapsed_ms, 1),
+        }
+    else:
+        result = asyncio.run(run(
+            repo_path=repo_path,
+            config=contrast_config,
+            llm_config=llm_config,
+            confidence_threshold=args.threshold,
+            depth=args.depth,
+        ))
+        elapsed_ms = (time.time() - t0) * 1000
+
+        output = {
+            "repo_path": repo_path,
+            "total_modules": result.total,
+            "deterministic_matched": {
+                path: {
+                    "app_id": m.app_id,
+                    "app_name": m.app_name,
+                    "confidence": m.confidence,
+                    "search_term": m.search_term,
+                }
+                for path, m in result.matched.items()
+            },
+            "llm_matched": {
+                path: {
+                    "app_id": m.application_id,
+                    "app_name": m.application_name,
+                    "confidence": m.confidence,
+                    "reasoning": m.reasoning,
+                }
+                for path, m in result.llm_matched.items()
+            },
+            "unmatched": result.unmatched,
+            "execution_time_ms": round(elapsed_ms, 1),
+        }
 
     json_str = json.dumps(output, indent=2)
 
@@ -114,7 +142,10 @@ def main():
     else:
         print(json_str)
 
-    sys.exit(0 if not result.unmatched else 2)
+    if args.single:
+        sys.exit(0 if match else 2)
+    else:
+        sys.exit(0 if not result.unmatched else 2)
 
 
 if __name__ == "__main__":

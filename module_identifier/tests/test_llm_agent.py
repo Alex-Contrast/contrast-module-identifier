@@ -100,6 +100,7 @@ class TestAgentInstructions:
             manifest="pom.xml",
             contrast_app_name_line="",
             scoring_context="No candidates scored above 0.0.",
+            already_matched_context="",
         )
         assert "order-api" in formatted
         assert "services/order" in formatted
@@ -113,6 +114,7 @@ class TestAgentInstructions:
             manifest="pom.xml",
             contrast_app_name_line="- Contrast config app name: webgoat-sm\n",
             scoring_context="No candidates.",
+            already_matched_context="",
         )
         assert "webgoat-sm" in formatted
 

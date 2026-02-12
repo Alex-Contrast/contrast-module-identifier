@@ -60,6 +60,7 @@ async def create_mcp_toolsets(
         ],
         cwd=repo_path,
         tool_prefix="fs_",
+        timeout=30,
     )
     fs_filtered = fs_server.filtered(
         lambda ctx, tool_def: tool_def.name in FILESYSTEM_TOOLS
@@ -67,8 +68,8 @@ async def create_mcp_toolsets(
     toolsets.append(fs_filtered)
 
     # Contrast MCP — search only
-    env = os.environ.copy()
-    env.update(contrast_config.as_env())
+    env = contrast_config.as_env()
+    env["PATH"] = os.environ.get("PATH", "")
 
     jar = jar_path or _default_jar_path()
     if os.path.isfile(jar):
@@ -77,6 +78,7 @@ async def create_mcp_toolsets(
             args=["-jar", jar, "-t", "stdio"],
             env=env,
             tool_prefix="contrast_",
+            timeout=30,
         )
     else:
         contrast_server = MCPServerStdio(
@@ -93,6 +95,7 @@ async def create_mcp_toolsets(
             ],
             env=env,
             tool_prefix="contrast_",
+            timeout=30,
         )
 
     contrast_filtered = contrast_server.filtered(

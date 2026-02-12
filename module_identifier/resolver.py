@@ -26,6 +26,7 @@ class AppMatch:
     app_name: str
     confidence: float  # 0.0 - 1.0
     search_term: str
+    source: str = "deterministic"  # "deterministic" or "llm"
 
 
 # -- Search term extraction --
