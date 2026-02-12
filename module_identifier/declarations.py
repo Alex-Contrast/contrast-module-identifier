@@ -1,5 +1,6 @@
 import json
 import re
+# stdlib ElementTree is not vulnerable to XXE (no external entity support)
 import xml.etree.ElementTree as ET
 from pathlib import Path
 from typing import Optional
@@ -58,7 +59,9 @@ def _maven_modules(repo_root: Path) -> list[DiscoveredModule]:
             if not module_dir:
                 continue
 
-            module_path = repo_root / module_dir
+            module_path = (repo_root / module_dir).resolve()
+            if not module_path.is_relative_to(repo_root.resolve()):
+                continue
             module_pom = module_path / "pom.xml"
             if module_pom.is_file():
                 name = _name_from_pom_xml(module_pom) or module_path.name
@@ -127,7 +130,9 @@ def _gradle_modules(repo_root: Path) -> list[DiscoveredModule]:
         for module_ref in unique:
             # Gradle uses : as path separator
             module_dir = module_ref.lstrip(":").replace(":", "/")
-            module_path = repo_root / module_dir
+            module_path = (repo_root / module_dir).resolve()
+            if not module_path.is_relative_to(repo_root.resolve()):
+                continue
 
             if not module_path.is_dir():
                 continue
@@ -173,6 +178,8 @@ def _node_workspaces(repo_root: Path) -> list[DiscoveredModule]:
         results = []
         for pattern in workspaces:
             for match_path in sorted(repo_root.glob(pattern)):
+                if not match_path.resolve().is_relative_to(repo_root.resolve()):
+                    continue
                 if not match_path.is_dir():
                     continue
                 child_pkg = match_path / "package.json"
@@ -226,7 +233,9 @@ def _dotnet_solution_projects(repo_root: Path) -> list[DiscoveredModule]:
                     continue
                 seen_paths.add(module_dir)
 
-                # Verify directory exists
+                # Verify directory exists and is within repo
+                if not (repo_root / module_dir).resolve().is_relative_to(repo_root.resolve()):
+                    continue
                 if not (repo_root / module_dir).is_dir():
                     continue
 

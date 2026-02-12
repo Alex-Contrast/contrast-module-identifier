@@ -35,8 +35,8 @@ def _server_params(
     Prefers running the jar directly (faster, no Docker overhead).
     Falls back to Docker if no jar_path provided and default doesn't exist.
     """
-    env = os.environ.copy()
-    env.update(config.as_env())
+    env = config.as_env()
+    env["PATH"] = os.environ.get("PATH", "")
 
     jar = jar_path or _default_jar_path()
     if os.path.isfile(jar):

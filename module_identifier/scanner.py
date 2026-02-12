@@ -1,5 +1,6 @@
 import json
 import re
+# stdlib ElementTree is not vulnerable to XXE (no external entity support)
 import xml.etree.ElementTree as ET
 from pathlib import Path
 from typing import Optional
@@ -65,6 +66,7 @@ def discover_modules(repo_root: Path, depth: int = 4) -> list[DiscoveredModule]:
     Returns:
         List of discovered modules.
     """
+    repo_root = repo_root.resolve()
     results: list[DiscoveredModule] = []
     _scan_directory(repo_root, repo_root, depth, results)
     return results
@@ -105,6 +107,9 @@ def _scan_directory(
     try:
         for child in sorted(dir_path.iterdir()):
             if child.is_dir() and child.name not in SKIP_DIRS:
+                real = child.resolve()
+                if not real.is_relative_to(repo_root):
+                    continue
                 _scan_directory(child, repo_root, remaining_depth - 1, results)
     except PermissionError:
         pass
