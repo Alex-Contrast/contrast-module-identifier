@@ -1,6 +1,7 @@
 """LLM fallback agent for resolving modules that the deterministic scorer couldn't match."""
 
 import logging
+import re
 import time
 from typing import Optional
 
@@ -25,6 +26,21 @@ MESSAGES_TO_KEEP_AFTER_TRIM = 10
 
 # How many top candidates to include in agent context
 TOP_N_CANDIDATES = 5
+
+# Input sanitization limits
+MAX_NAME_LENGTH = 200
+_SAFE_NAME_PATTERN = re.compile(r"[^\w @/:.\-\\]")
+
+
+def _sanitize(value: str, max_length: int = MAX_NAME_LENGTH) -> str:
+    """Sanitize user-supplied values before inserting into agent prompts.
+
+    Strips control characters, removes characters outside a safe set
+    (word chars, spaces, and common path/name punctuation), and truncates.
+    """
+    value = value.replace("\r", "").replace("\n", " ")
+    value = _SAFE_NAME_PATTERN.sub("", value)
+    return value[:max_length]
 
 
 def _trim_messages(messages: list[ModelMessage]) -> list[ModelMessage]:
@@ -148,19 +164,19 @@ async def resolve_module(
 
     contrast_app_name_line = ""
     if module.contrast_app_name:
-        contrast_app_name_line = f"- Contrast config app name: {module.contrast_app_name}\n"
+        contrast_app_name_line = f"- Contrast config app name: {_sanitize(module.contrast_app_name)}\n"
 
     already_matched_context = ""
     if already_matched:
         lines = ["OTHER MODULES IN THIS REPO ALREADY MATCHED:"]
         for path, match in already_matched.items():
-            lines.append(f"  - {path} → {match.app_name} (id={match.app_id})")
+            lines.append(f"  - {_sanitize(path)} → {_sanitize(match.app_name)} (id={match.app_id})")
         lines.append("Consider whether this module might belong to the same application.")
         already_matched_context = "\n".join(lines)
 
     instructions = AGENT_INSTRUCTIONS.format(
-        module_name=module.name,
-        module_path=module.path,
+        module_name=_sanitize(module.name),
+        module_path=_sanitize(module.path),
         ecosystem=module.ecosystem.value,
         manifest=module.manifest.value,
         contrast_app_name_line=contrast_app_name_line,
@@ -215,9 +231,8 @@ async def resolve_module(
 
     except Exception as e:
         elapsed = time.monotonic() - t0
-        log.error("LLM agent failed for %s (%.1fs): %s", module.name, elapsed, e)
-        import traceback
-        log.error(traceback.format_exc())
+        log.error("LLM agent failed for %s (%.1fs): %s", module.name, elapsed, type(e).__name__)
+        log.debug("LLM agent exception detail for %s: %s", module.name, e, exc_info=True)
         return None
 
 
@@ -234,6 +249,10 @@ async def resolve_modules(
 
     Returns {module.path: LLMMatch or None} for each module.
     """
+    # TODO(GA): Parallelize with asyncio.gather + semaphore. Sequential is fine for EA
+    # (single module via identify_repo), but GA monorepos with many unmatched modules
+    # will hit a latency cliff (N modules × ~8s each). Use Semaphore(3) to limit
+    # concurrent LLM calls. See PR #2 review comments.
     results = {}
     for module in modules:
         results[module.path] = await resolve_module(

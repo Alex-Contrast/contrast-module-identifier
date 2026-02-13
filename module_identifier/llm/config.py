@@ -20,10 +20,14 @@ class LLMConfig:
     def __post_init__(self) -> None:
         self._validate()
 
+    def __repr__(self) -> str:
+        return f"LLMConfig(provider={self.provider!r}, debug={self.debug})"
+
     # AWS Bedrock
     aws_region: Optional[str] = None
     aws_access_key_id: Optional[str] = None
     aws_secret_access_key: Optional[str] = None
+    aws_session_token: Optional[str] = None
     bedrock_model_id: Optional[str] = None
 
     # Anthropic
@@ -55,6 +59,7 @@ class LLMConfig:
             aws_region=os.getenv("AWS_REGION"),
             aws_access_key_id=os.getenv("AWS_ACCESS_KEY_ID"),
             aws_secret_access_key=os.getenv("AWS_SECRET_ACCESS_KEY"),
+            aws_session_token=os.getenv("AWS_SESSION_TOKEN"),
             bedrock_model_id=os.getenv("BEDROCK_MODEL_ID"),
             anthropic_api_key=os.getenv("ANTHROPIC_API_KEY"),
             azure_openai_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT"),

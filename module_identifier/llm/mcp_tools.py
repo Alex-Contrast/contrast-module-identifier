@@ -48,6 +48,10 @@ async def create_mcp_toolsets(
     toolsets = []
 
     # Filesystem MCP — scoped to repo, read-only tools only
+    # TODO(M-3): When Dockerized, install @modelcontextprotocol/server-filesystem@2025.11.25
+    # at image build time and invoke the binary directly instead of npx. This eliminates
+    # the runtime fetch from public npm and closes the supply chain risk.
+    # See: .docs/smartfix_integration.md "Supply Chain" section.
     fs_server = MCPServerStdio(
         command="npx",
         args=[

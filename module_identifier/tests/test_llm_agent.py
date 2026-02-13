@@ -6,6 +6,7 @@ import pytest
 
 from module_identifier.llm.agent import (
     _build_scoring_context,
+    _sanitize,
     _score_all_candidates,
     _trim_messages,
     resolve_module,
@@ -140,6 +141,46 @@ class TestTrimMessages:
 
     def test_single_message(self):
         assert _trim_messages(["only"]) == ["only"]
+
+
+class TestSanitize:
+    def test_normal_module_names_unchanged(self):
+        assert _sanitize("employee-management") == "employee-management"
+        assert _sanitize("WhackTheCat") == "WhackTheCat"
+        assert _sanitize("contrast-security-app") == "contrast-security-app"
+
+    def test_scoped_and_qualified_names(self):
+        assert _sanitize("com.acme:order-api") == "com.acme:order-api"
+        assert _sanitize("@scope/billing-api") == "@scope/billing-api"
+        assert _sanitize("github.com/acme/svc") == "github.com/acme/svc"
+
+    def test_paths_with_spaces(self):
+        assert _sanitize("My Project/src") == "My Project/src"
+        assert _sanitize("C:\\Users\\dev\\My App") == "C:\\Users\\dev\\My App"
+
+    def test_strips_control_characters(self):
+        assert _sanitize("module\r\nname") == "module name"
+        assert _sanitize("module\x00name") == "modulename"
+        assert _sanitize("module\tname") == "modulename"
+
+    def test_strips_curly_braces(self):
+        assert "{" not in _sanitize("{__class__.__init__.__globals__}")
+        assert "{" not in _sanitize("module-{name}")
+
+    def test_strips_angle_brackets_and_quotes(self):
+        assert "<" not in _sanitize("<script>alert(1)</script>")
+        assert "'" not in _sanitize("module'name")
+        assert "`" not in _sanitize("module`name")
+
+    def test_truncates_long_input(self):
+        assert len(_sanitize("a" * 500)) == 200
+
+    def test_empty_string(self):
+        assert _sanitize("") == ""
+
+    def test_equals_sign_stripped(self):
+        result = _sanitize("app_id=HACKED")
+        assert "=" not in result
 
 
 class TestResolveModule:

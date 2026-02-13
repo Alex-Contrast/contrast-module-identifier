@@ -26,17 +26,22 @@ def get_model(config: LLMConfig) -> Model:
 
 
 def _create_bedrock_model(config: LLMConfig) -> Model:
+    import boto3
     from pydantic_ai.models.bedrock import BedrockConverseModel
-    import os
+    from pydantic_ai.providers.bedrock import BedrockProvider
 
-    if config.aws_access_key_id:
-        os.environ["AWS_ACCESS_KEY_ID"] = config.aws_access_key_id
-    if config.aws_secret_access_key:
-        os.environ["AWS_SECRET_ACCESS_KEY"] = config.aws_secret_access_key
-    if config.aws_region:
-        os.environ["AWS_DEFAULT_REGION"] = config.aws_region
+    session = boto3.Session(
+        aws_access_key_id=config.aws_access_key_id,
+        aws_secret_access_key=config.aws_secret_access_key,
+        aws_session_token=config.aws_session_token,
+        region_name=config.aws_region,
+    )
+    client = session.client("bedrock-runtime")
 
-    return BedrockConverseModel(model_name=config.bedrock_model_id)
+    return BedrockConverseModel(
+        model_name=config.bedrock_model_id,
+        provider=BedrockProvider(bedrock_client=client),
+    )
 
 
 def _create_anthropic_model(config: LLMConfig) -> Model:
