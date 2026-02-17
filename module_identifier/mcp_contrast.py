@@ -9,6 +9,7 @@ import json
 import logging
 import os
 import time
+from pathlib import Path
 
 from mcp import ClientSession
 from mcp.client.stdio import StdioServerParameters, stdio_client
@@ -19,9 +20,10 @@ from .resolver import AppCandidate
 log = logging.getLogger(__name__)
 
 
-DEFAULT_JAR_PATH = os.path.expanduser(
-    "~/dev/aiml/mcp-contrast/target/mcp-contrast-0.0.16-SNAPSHOT.jar"
-)
+def _default_jar_path() -> str:
+    """Read jar path from env (set by load_dotenv at runtime)."""
+    raw = os.environ.get("MCP_CONTRAST_JAR_PATH", "")
+    return str(Path(os.path.expanduser(raw)).resolve()) if raw else ""
 
 
 def _server_params(
@@ -36,7 +38,7 @@ def _server_params(
     env = config.as_env()
     env["PATH"] = os.environ.get("PATH", "")
 
-    jar = jar_path or DEFAULT_JAR_PATH
+    jar = jar_path or _default_jar_path()
     if os.path.isfile(jar):
         return StdioServerParameters(
             command="java",

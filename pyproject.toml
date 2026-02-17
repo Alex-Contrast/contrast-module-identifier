@@ -5,6 +5,7 @@ description = "Deterministic module discovery and Contrast app ID resolution for
 requires-python = ">=3.10"
 dependencies = [
     "pydantic>=2.0",
+    "pydantic-ai[openai,anthropic,bedrock,vertexai,mcp]>=1.33.0",
     "mcp>=1.0",
     "python-dotenv>=1.0",
 ]
@@ -14,6 +15,9 @@ dev = [
     "pytest>=7.0",
     "pytest-asyncio>=0.23",
 ]
+
+[tool.setuptools.packages.find]
+include = ["module_identifier*"]
 
 [build-system]
 requires = ["setuptools>=61.0", "wheel"]
