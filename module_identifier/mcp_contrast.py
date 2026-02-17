@@ -74,8 +74,13 @@ def _parse_candidates(result) -> list[AppCandidate]:
         except (json.JSONDecodeError, TypeError):
             continue
 
-        # Handle both list of apps and single app responses
-        apps = data if isinstance(data, list) else [data]
+        # Handle list, {"items": [...]}, or single app responses
+        if isinstance(data, list):
+            apps = data
+        elif isinstance(data, dict) and isinstance(data.get("items"), list):
+            apps = data["items"]
+        else:
+            apps = [data]
         for app in apps:
             if not isinstance(app, dict):
                 continue

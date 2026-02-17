@@ -70,6 +70,36 @@ class TestParseCandidates:
         assert candidates[1].name == "juice-shop"
         assert candidates[1].language == "Node"
 
+    def test_items_null_treated_as_single_object(self):
+        """{"items": null} should not crash — treated as single object, skipped."""
+        data = {"items": None}
+        result = _mcp_result(json.dumps(data))
+        assert _parse_candidates(result) == []
+
+    def test_items_wrapped_response(self):
+        """mcp-contrast 1.0.0+ wraps results in {"items": [...]}."""
+        data = {
+            "items": [
+                {
+                    "name": "webgoat-server",
+                    "appID": "adc11a30-3a0b-4866-9524-80eb5b61d014",
+                    "language": "Java",
+                },
+                {
+                    "name": "juice-shop",
+                    "appID": "bf180fef-33cb-4bcb-a207-926fa4d5dde8",
+                    "language": "Node",
+                },
+            ]
+        }
+        result = _mcp_result(json.dumps(data))
+        candidates = _parse_candidates(result)
+
+        assert len(candidates) == 2
+        assert candidates[0].app_id == "adc11a30-3a0b-4866-9524-80eb5b61d014"
+        assert candidates[0].name == "webgoat-server"
+        assert candidates[1].name == "juice-shop"
+
     def test_single_app_response(self):
         data = {
             "name": "my-app",
