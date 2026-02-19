@@ -74,8 +74,13 @@ def _parse_candidates(result) -> list[AppCandidate]:
         except (json.JSONDecodeError, TypeError):
             continue
 
-        # Handle both list of apps and single app responses
-        apps = data if isinstance(data, list) else [data]
+        # Handle list, {"items": [...]}, or single app responses
+        if isinstance(data, list):
+            apps = data
+        elif isinstance(data, dict) and isinstance(data.get("items"), list):
+            apps = data["items"]
+        else:
+            apps = [data]
         for app in apps:
             if not isinstance(app, dict):
                 continue
@@ -89,6 +94,20 @@ def _parse_candidates(result) -> list[AppCandidate]:
                     language=language,
                 ))
     return candidates
+
+
+def _has_more_pages(result) -> bool:
+    """Check if the MCP paginated response indicates more pages."""
+    for block in result.content:
+        if block.type != "text":
+            continue
+        try:
+            data = json.loads(block.text)
+        except (json.JSONDecodeError, TypeError):
+            continue
+        if isinstance(data, dict):
+            return bool(data.get("hasMorePages", False))
+    return False
 
 
 class ContrastMCP:
@@ -134,25 +153,37 @@ class ContrastMCP:
             await self._stdio_cm.__aexit__(*exc)
 
     async def list_applications(self) -> list[AppCandidate]:
-        """Fetch all applications from the Contrast org. Single call."""
+        """Fetch all applications from the Contrast org, paginating if needed."""
         assert self._session is not None, "Not connected — use 'async with'"
 
-        t0 = time.monotonic()
-        result = await self._session.call_tool(
-            "search_applications",
-            {"query": ""},
-        )
-        elapsed = time.monotonic() - t0
+        all_candidates: list[AppCandidate] = []
+        page = 1
+        page_size = 100  # MCP server max
 
-        raw_bytes = sum(len(b.text) for b in result.content if b.type == "text")
-        candidates = _parse_candidates(result)
+        while True:
+            t0 = time.monotonic()
+            result = await self._session.call_tool(
+                "search_applications",
+                {"page": page, "pageSize": page_size},
+            )
+            elapsed = time.monotonic() - t0
 
-        self._call_count += 1
-        self._total_candidates += len(candidates)
-        self._total_time += elapsed
+            self._call_count += 1
+            self._total_time += elapsed
 
-        log.info(
-            "list_applications → %d apps, %d bytes, %.2fs",
-            len(candidates), raw_bytes, elapsed,
-        )
-        return candidates
+            raw_bytes = sum(len(b.text) for b in result.content if b.type == "text")
+            candidates = _parse_candidates(result)
+            all_candidates.extend(candidates)
+
+            has_more = _has_more_pages(result)
+            log.info(
+                "list_applications page %d → %d apps, %d bytes, %.2fs (hasMore=%s)",
+                page, len(candidates), raw_bytes, elapsed, has_more,
+            )
+
+            if not has_more or not candidates:
+                break
+            page += 1
+
+        self._total_candidates += len(all_candidates)
+        return all_candidates

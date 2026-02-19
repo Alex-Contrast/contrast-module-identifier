@@ -52,9 +52,17 @@ def main():
     )
     parser.add_argument(
         "-o", "--output",
-        help="Write JSON output to file instead of stdout",
+        help="Write JSON details to file (for debugging)",
+    )
+    parser.add_argument(
+        "--output-env",
+        help="Write APP_ID=<value> to file (for CI consumption)",
     )
     args = parser.parse_args()
+
+    if args.output_env and not args.single:
+        print("Error: --output-env requires --single mode", file=sys.stderr)
+        sys.exit(1)
 
     level = logging.DEBUG if args.debug else logging.INFO
     logging.basicConfig(
@@ -133,18 +141,15 @@ def main():
             "execution_time_ms": round(elapsed_ms, 1),
         }
 
-    json_str = json.dumps(output, indent=2)
-
     if args.output:
+        json_str = json.dumps(output, indent=2)
         Path(args.output).write_text(json_str)
         print(f"Results written to {args.output}", file=sys.stderr)
-    else:
-        print(json_str)
 
-    if args.single:
-        sys.exit(0 if match else 2)
-    else:
-        sys.exit(0 if not result.unmatched else 2)
+    if args.output_env:
+        app_id = output.get("app_id") or ""
+        Path(args.output_env).write_text(f"APP_ID={app_id}\n")
+        print(f"Env written to {args.output_env}", file=sys.stderr)
 
 
 if __name__ == "__main__":
