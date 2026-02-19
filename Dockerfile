@@ -2,7 +2,7 @@
 FROM contrast/mcp-contrast:1.0.0 AS mcp-contrast
 
 # Stage 2: Final image
-FROM python:3.11-slim
+FROM python:3.13-slim
 
 # Install Node.js (for filesystem MCP server) and JRE 17 (for Contrast MCP server)
 RUN apt-get update && \
@@ -10,7 +10,7 @@ RUN apt-get update && \
     rm -rf /var/lib/apt/lists/*
 
 # Pre-install filesystem MCP at build time — no runtime npm fetch (supply chain fix)
-RUN npm install -g @modelcontextprotocol/server-filesystem@2025.11.25
+RUN npm install -g @modelcontextprotocol/server-filesystem@2026.1.14
 
 # Copy Contrast MCP jar from stage 1
 COPY --from=mcp-contrast /app/app.jar /opt/mcp-contrast/mcp-contrast.jar

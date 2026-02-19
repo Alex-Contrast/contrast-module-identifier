@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from types import SimpleNamespace
 
 from module_identifier.config import ContrastConfig
-from module_identifier.mcp_contrast import _parse_candidates, _server_params
+from module_identifier.mcp_contrast import _has_more_pages, _parse_candidates, _server_params
 
 
 # --- Helpers ---
@@ -155,6 +155,27 @@ class TestParseCandidates:
         candidates = _parse_candidates(result)
         assert len(candidates) == 1
         assert candidates[0].name == "real-app"
+
+
+# --- _has_more_pages ---
+
+
+class TestHasMorePages:
+    def test_has_more_true(self):
+        result = _mcp_result(json.dumps({"items": [], "hasMorePages": True}))
+        assert _has_more_pages(result) is True
+
+    def test_has_more_false(self):
+        result = _mcp_result(json.dumps({"items": [], "hasMorePages": False}))
+        assert _has_more_pages(result) is False
+
+    def test_missing_field_defaults_false(self):
+        result = _mcp_result(json.dumps({"items": []}))
+        assert _has_more_pages(result) is False
+
+    def test_plain_list_returns_false(self):
+        result = _mcp_result(json.dumps([{"name": "app", "appID": "1"}]))
+        assert _has_more_pages(result) is False
 
 
 # --- _server_params ---
