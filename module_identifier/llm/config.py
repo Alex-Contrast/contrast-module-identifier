@@ -28,6 +28,7 @@ class LLMConfig:
     aws_access_key_id: Optional[str] = None
     aws_secret_access_key: Optional[str] = None
     aws_session_token: Optional[str] = None
+    aws_bearer_token_bedrock: Optional[str] = None
     bedrock_model_id: Optional[str] = None
 
     # Anthropic
@@ -60,6 +61,7 @@ class LLMConfig:
             aws_access_key_id=os.getenv("AWS_ACCESS_KEY_ID"),
             aws_secret_access_key=os.getenv("AWS_SECRET_ACCESS_KEY"),
             aws_session_token=os.getenv("AWS_SESSION_TOKEN"),
+            aws_bearer_token_bedrock=os.getenv("AWS_BEARER_TOKEN_BEDROCK"),
             bedrock_model_id=os.getenv("BEDROCK_MODEL_ID"),
             anthropic_api_key=os.getenv("ANTHROPIC_API_KEY"),
             azure_openai_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT"),
@@ -74,14 +76,25 @@ class LLMConfig:
     def _validate(self) -> None:
         """Validate that required credentials exist for the selected provider."""
         if self.provider == "bedrock":
-            missing = [
-                v for v in ("aws_region", "aws_access_key_id", "aws_secret_access_key", "bedrock_model_id")
+            # Always required regardless of auth method
+            always_required = [
+                v for v in ("aws_region", "bedrock_model_id")
                 if not getattr(self, v)
             ]
-            if missing:
+            if always_required:
                 raise ValueError(
-                    f"Bedrock requires: {', '.join(v.upper() for v in missing)}"
+                    f"Bedrock requires: {', '.join(v.upper() for v in always_required)}"
                 )
+            # Need either bearer token OR IAM keys
+            if not self.aws_bearer_token_bedrock:
+                iam_missing = [
+                    v for v in ("aws_access_key_id", "aws_secret_access_key")
+                    if not getattr(self, v)
+                ]
+                if iam_missing:
+                    raise ValueError(
+                        f"Bedrock requires: {', '.join(v.upper() for v in iam_missing)}"
+                    )
         elif self.provider == "anthropic":
             if not self.anthropic_api_key:
                 raise ValueError("Anthropic requires: ANTHROPIC_API_KEY")
