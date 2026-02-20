@@ -42,7 +42,7 @@ module_identifier/
 ├── mcp_contrast.py      # MCP client for Contrast Security API (list_applications)
 ├── pipeline.py          # Module-level pipeline: discover → resolve → LLM fallback (GA path)
 ├── llm/
-│   ├── config.py        # Multi-provider LLM config (Bedrock, Anthropic, Azure, Gemini)
+│   ├── config.py        # Multi-provider LLM config (Bedrock, Anthropic, Gemini)
 │   ├── models.py        # LLMMatch structured output model
 │   ├── providers.py     # LLM model factory (lazy imports per provider)
 │   ├── agent.py         # Pydantic AI agent with system prompt, MCP tools, usage limits
@@ -90,12 +90,11 @@ Python 3.10+ required.
 Contrast credentials via `.env` (see `.env.example`):
 - `CONTRAST_HOST_NAME`, `CONTRAST_API_KEY`, `CONTRAST_SERVICE_KEY`, `CONTRAST_USERNAME`, `CONTRAST_ORG_ID`
 
-LLM provider (one of):
-- **Bedrock** (IAM keys): `AWS_REGION`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `BEDROCK_MODEL_ID`
-- **Bedrock** (bearer token): `AWS_REGION`, `AWS_BEARER_TOKEN_BEDROCK`, `BEDROCK_MODEL_ID`
-- **Anthropic**: `ANTHROPIC_API_KEY`
-- **Azure OpenAI**: `AZURE_OPENAI_ENDPOINT`, `AZURE_OPENAI_API_KEY`, `AZURE_OPENAI_DEPLOYMENT`
-- **Gemini**: `GOOGLE_API_KEY`, `GEMINI_MODEL`
+LLM provider — set `AGENT_MODEL` with provider prefix (matches SmartFix):
+- **Bedrock** (bearer token): `AGENT_MODEL=bedrock/<model-id>`, `AWS_REGION_NAME`, `AWS_BEARER_TOKEN_BEDROCK`
+- **Bedrock** (IAM credentials): `AGENT_MODEL=bedrock/<model-id>`, `AWS_REGION_NAME`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`
+- **Anthropic**: `AGENT_MODEL=anthropic/<model>`, `ANTHROPIC_API_KEY`
+- **Gemini**: `AGENT_MODEL=gemini/<model>`, `GEMINI_API_KEY`
 
 External services:
 - **Contrast MCP server** — jar path via `MCP_CONTRAST_JAR_PATH` env var, falls back to Docker `contrast/mcp-contrast:latest`

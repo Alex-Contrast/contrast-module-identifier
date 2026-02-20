@@ -185,7 +185,7 @@ class TestSanitize:
 
 class TestResolveModule:
     def _llm_config(self):
-        return LLMConfig(provider="anthropic", anthropic_api_key="sk-test")
+        return LLMConfig(provider="anthropic", model_name="claude-sonnet-4-5", anthropic_api_key="sk-test")
 
     def _contrast_config(self):
         return ContrastConfig(

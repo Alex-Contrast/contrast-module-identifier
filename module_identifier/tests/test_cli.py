@@ -30,13 +30,17 @@ def _match(module=None, app_id="abc-123", app_name="order-api"):
 @pytest.fixture
 def env_vars(monkeypatch):
     """Set required env vars so ContrastConfig and LLMConfig don't fail."""
+    # ContrastConfig reads from os.environ
     monkeypatch.setenv("CONTRAST_HOST_NAME", "h")
     monkeypatch.setenv("CONTRAST_API_KEY", "k")
     monkeypatch.setenv("CONTRAST_SERVICE_KEY", "s")
     monkeypatch.setenv("CONTRAST_USERNAME", "u")
     monkeypatch.setenv("CONTRAST_ORG_ID", "o")
-    monkeypatch.setenv("LLM_PROVIDER", "anthropic")
-    monkeypatch.setenv("ANTHROPIC_API_KEY", "test")
+    # LLMConfig reads from .env via dotenv_values
+    monkeypatch.setattr("module_identifier.llm.config.dotenv_values", lambda: {
+        "AGENT_MODEL": "anthropic/claude-sonnet-4-5",
+        "ANTHROPIC_API_KEY": "test",
+    })
 
 
 class TestOutputEnv:
