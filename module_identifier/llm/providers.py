@@ -24,21 +24,29 @@ def get_model(config: LLMConfig) -> Model:
 
 
 def _create_bedrock_model(config: LLMConfig) -> Model:
-    import boto3
     from pydantic_ai.models.bedrock import BedrockConverseModel
     from pydantic_ai.providers.bedrock import BedrockProvider
 
-    session = boto3.Session(
-        aws_access_key_id=config.aws_access_key_id,
-        aws_secret_access_key=config.aws_secret_access_key,
-        aws_session_token=config.aws_session_token,
-        region_name=config.aws_region_name,
-    )
-    client = session.client("bedrock-runtime")
+    if config.aws_bearer_token_bedrock:
+        provider = BedrockProvider(
+            api_key=config.aws_bearer_token_bedrock,
+            region_name=config.aws_region_name,
+        )
+    else:
+        import boto3
+
+        session = boto3.Session(
+            aws_access_key_id=config.aws_access_key_id,
+            aws_secret_access_key=config.aws_secret_access_key,
+            aws_session_token=config.aws_session_token,
+            region_name=config.aws_region_name,
+        )
+        client = session.client("bedrock-runtime")
+        provider = BedrockProvider(bedrock_client=client)
 
     return BedrockConverseModel(
         model_name=config.model_name,
-        provider=BedrockProvider(bedrock_client=client),
+        provider=provider,
     )
 
 

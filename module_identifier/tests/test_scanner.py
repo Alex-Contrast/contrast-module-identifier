@@ -208,6 +208,14 @@ class TestDiscoverModules:
         modules = discover_modules(tmp_repo)
         assert modules == []
 
+    def test_dotfile_directory_skipped(self, tmp_repo):
+        """Directories starting with '.' should be skipped entirely."""
+        hidden = tmp_repo / ".module-identifier"
+        hidden.mkdir()
+        (hidden / "pyproject.toml").write_text('[project]\nname = "ghost"')
+        modules = discover_modules(tmp_repo, depth=2)
+        assert modules == []
+
     def test_skips_node_modules(self, tmp_repo):
         nm = tmp_repo / "node_modules" / "some-dep"
         nm.mkdir(parents=True)

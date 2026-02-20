@@ -81,6 +81,35 @@ class TestLLMConfigValidation:
         )
         assert config.aws_session_token is None
 
+    def test_bedrock_valid_with_bearer_token(self):
+        """Bearer token + region + model_name is sufficient — no IAM keys needed."""
+        config = LLMConfig(
+            provider="bedrock",
+            model_name="us.anthropic.claude-sonnet-4-5-20250929-v1:0",
+            aws_region_name="us-east-1",
+            aws_bearer_token_bedrock="token-abc",
+        )
+        assert config.provider == "bedrock"
+        assert config.aws_bearer_token_bedrock == "token-abc"
+
+    def test_bedrock_bearer_token_without_region_fails(self):
+        """Region is still required even with bearer token."""
+        with pytest.raises(ValueError, match="AWS_REGION_NAME"):
+            LLMConfig(
+                provider="bedrock",
+                model_name="us.anthropic.claude-sonnet-4-5-20250929-v1:0",
+                aws_bearer_token_bedrock="token-abc",
+            )
+
+    def test_bedrock_no_credentials_at_all_fails(self):
+        """Must have either bearer token or IAM keys."""
+        with pytest.raises(ValueError, match="AWS_ACCESS_KEY_ID"):
+            LLMConfig(
+                provider="bedrock",
+                model_name="us.anthropic.claude-sonnet-4-5-20250929-v1:0",
+                aws_region_name="us-east-1",
+            )
+
     def test_anthropic_valid(self):
         config = LLMConfig(provider="anthropic", model_name="claude-sonnet-4-5", anthropic_api_key="sk-test")
         assert config.provider == "anthropic"
@@ -135,6 +164,17 @@ class TestLLMConfigFromEnv:
         assert config.model_name == "claude-sonnet-4-5"
         assert config.anthropic_api_key == "sk-test"
 
+    def test_from_env_bedrock_bearer_token(self, monkeypatch):
+        _mock_dotenv({
+            "AGENT_MODEL": "bedrock/us.anthropic.claude-sonnet-4-5-20250929-v1:0",
+            "AWS_REGION_NAME": "us-east-1",
+            "AWS_BEARER_TOKEN_BEDROCK": "token-abc",
+        })(monkeypatch)
+
+        config = LLMConfig.from_env()
+        assert config.provider == "bedrock"
+        assert config.aws_bearer_token_bedrock == "token-abc"
+
     def test_from_env_gemini(self, monkeypatch):
         _mock_dotenv({
             "AGENT_MODEL": "gemini/gemini-2.0-flash",
@@ -177,14 +217,23 @@ class TestLLMConfigFromEnv:
 class TestLLMConfigFromEnvFailure:
     """Verify from_env() produces correct error messages with SmartFix-aligned env var names."""
 
-    def test_bedrock_missing_all(self, monkeypatch):
+    def test_bedrock_missing_region(self, monkeypatch):
+        """Region fails first when nothing is provided."""
         _mock_dotenv({
             "AGENT_MODEL": "bedrock/us.anthropic.claude-sonnet-4-5-20250929-v1:0",
+        })(monkeypatch)
+        with pytest.raises(ValueError, match="AWS_REGION_NAME"):
+            LLMConfig.from_env()
+
+    def test_bedrock_missing_auth(self, monkeypatch):
+        """With region present but no bearer token or IAM keys, fails on IAM keys."""
+        _mock_dotenv({
+            "AGENT_MODEL": "bedrock/us.anthropic.claude-sonnet-4-5-20250929-v1:0",
+            "AWS_REGION_NAME": "us-east-1",
         })(monkeypatch)
         with pytest.raises(ValueError) as exc_info:
             LLMConfig.from_env()
         msg = str(exc_info.value)
-        assert "AWS_REGION_NAME" in msg
         assert "AWS_ACCESS_KEY_ID" in msg
         assert "AWS_SECRET_ACCESS_KEY" in msg
 

@@ -91,7 +91,8 @@ Contrast credentials via `.env` (see `.env.example`):
 - `CONTRAST_HOST_NAME`, `CONTRAST_API_KEY`, `CONTRAST_SERVICE_KEY`, `CONTRAST_USERNAME`, `CONTRAST_ORG_ID`
 
 LLM provider — set `AGENT_MODEL` with provider prefix (matches SmartFix):
-- **Bedrock**: `AGENT_MODEL=bedrock/<model-id>`, `AWS_REGION_NAME`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`
+- **Bedrock** (bearer token): `AGENT_MODEL=bedrock/<model-id>`, `AWS_REGION_NAME`, `AWS_BEARER_TOKEN_BEDROCK`
+- **Bedrock** (IAM credentials): `AGENT_MODEL=bedrock/<model-id>`, `AWS_REGION_NAME`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`
 - **Anthropic**: `AGENT_MODEL=anthropic/<model>`, `ANTHROPIC_API_KEY`
 - **Gemini**: `AGENT_MODEL=gemini/<model>`, `GEMINI_API_KEY`
 

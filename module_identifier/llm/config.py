@@ -35,6 +35,7 @@ class LLMConfig:
     aws_access_key_id: Optional[str] = None
     aws_secret_access_key: Optional[str] = None
     aws_session_token: Optional[str] = None
+    aws_bearer_token_bedrock: Optional[str] = None
 
     # Anthropic
     anthropic_api_key: Optional[str] = None
@@ -74,6 +75,7 @@ class LLMConfig:
             aws_access_key_id=env.get("AWS_ACCESS_KEY_ID"),
             aws_secret_access_key=env.get("AWS_SECRET_ACCESS_KEY"),
             aws_session_token=env.get("AWS_SESSION_TOKEN"),
+            aws_bearer_token_bedrock=env.get("AWS_BEARER_TOKEN_BEDROCK"),
             anthropic_api_key=env.get("ANTHROPIC_API_KEY"),
             gemini_api_key=env.get("GEMINI_API_KEY"),
             debug=env.get("DEBUG_LOGGING", "false").lower() == "true",
@@ -85,14 +87,19 @@ class LLMConfig:
         if not self.model_name:
             raise ValueError("model_name is required")
         if self.provider == "bedrock":
-            missing = [
-                v for v in ("aws_region_name", "aws_access_key_id", "aws_secret_access_key")
-                if not getattr(self, v)
-            ]
-            if missing:
-                raise ValueError(
-                    f"Bedrock requires: {', '.join(v.upper() for v in missing)}"
-                )
+            # Region is always required regardless of auth method
+            if not self.aws_region_name:
+                raise ValueError("Bedrock requires: AWS_REGION_NAME")
+            # Need either bearer token OR IAM keys
+            if not self.aws_bearer_token_bedrock:
+                iam_missing = [
+                    v for v in ("aws_access_key_id", "aws_secret_access_key")
+                    if not getattr(self, v)
+                ]
+                if iam_missing:
+                    raise ValueError(
+                        f"Bedrock requires: {', '.join(v.upper() for v in iam_missing)}"
+                    )
         elif self.provider == "anthropic":
             if not self.anthropic_api_key:
                 raise ValueError("Anthropic requires: ANTHROPIC_API_KEY")

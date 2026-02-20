@@ -106,7 +106,7 @@ def _scan_directory(
     # Recurse into subdirectories
     try:
         for child in sorted(dir_path.iterdir()):
-            if child.is_dir() and child.name not in SKIP_DIRS:
+            if child.is_dir() and not child.name.startswith(".") and child.name not in SKIP_DIRS:
                 real = child.resolve()
                 if not real.is_relative_to(repo_root):
                     continue
