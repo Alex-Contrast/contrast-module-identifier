@@ -16,7 +16,7 @@ def _module(name, path, manifest=Manifest.PACKAGE_JSON, ecosystem=Ecosystem.NODE
 
 
 def _llm_config():
-    return LLMConfig(provider="anthropic", anthropic_api_key="sk-test")
+    return LLMConfig(provider="anthropic", model_name="claude-sonnet-4-5", anthropic_api_key="sk-test")
 
 
 def _contrast_config():

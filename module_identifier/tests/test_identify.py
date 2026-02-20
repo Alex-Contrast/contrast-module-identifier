@@ -29,7 +29,7 @@ def config():
 
 @pytest.fixture
 def llm_config():
-    return LLMConfig(provider="anthropic", anthropic_api_key="test")
+    return LLMConfig(provider="anthropic", model_name="claude-sonnet-4-5", anthropic_api_key="test")
 
 
 # --- _best_deterministic_match ---

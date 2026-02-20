@@ -17,8 +17,6 @@ def get_model(config: LLMConfig) -> Model:
         return _create_bedrock_model(config)
     elif provider == "anthropic":
         return _create_anthropic_model(config)
-    elif provider == "azure":
-        return _create_azure_model(config)
     elif provider == "gemini":
         return _create_gemini_model(config)
     else:
@@ -34,12 +32,12 @@ def _create_bedrock_model(config: LLMConfig) -> Model:
         aws_access_key_id=config.aws_access_key_id,
         aws_secret_access_key=config.aws_secret_access_key,
         aws_session_token=config.aws_session_token,
-        region_name=config.aws_region,
+        region_name=config.aws_region_name,
     )
     client = session.client("bedrock-runtime")
 
     return BedrockConverseModel(
-        model_name=config.bedrock_model_id,
+        model_name=config.model_name,
         provider=BedrockProvider(bedrock_client=client),
     )
 
@@ -49,21 +47,8 @@ def _create_anthropic_model(config: LLMConfig) -> Model:
     from pydantic_ai.providers.anthropic import AnthropicProvider
 
     return AnthropicModel(
-        model_name="claude-sonnet-4-5",
+        model_name=config.model_name,
         provider=AnthropicProvider(api_key=config.anthropic_api_key),
-    )
-
-
-def _create_azure_model(config: LLMConfig) -> Model:
-    from pydantic_ai.models.openai import OpenAIModel
-    from pydantic_ai.providers.openai import OpenAIProvider
-
-    return OpenAIModel(
-        model_name=config.azure_openai_deployment,
-        provider=OpenAIProvider(
-            base_url=config.azure_openai_endpoint,
-            api_key=config.azure_openai_api_key,
-        ),
     )
 
 
@@ -72,6 +57,6 @@ def _create_gemini_model(config: LLMConfig) -> Model:
     from pydantic_ai.providers.google_gla import GoogleGLAProvider
 
     return GeminiModel(
-        model_name=config.gemini_model,
-        provider=GoogleGLAProvider(api_key=config.google_api_key),
+        model_name=config.model_name,
+        provider=GoogleGLAProvider(api_key=config.gemini_api_key),
     )
