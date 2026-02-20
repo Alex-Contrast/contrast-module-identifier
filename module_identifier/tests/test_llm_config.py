@@ -43,6 +43,44 @@ class TestLLMConfigValidation:
                 aws_secret_access_key="secret",
             )
 
+    def test_bedrock_valid_with_bearer_token(self):
+        """Bearer token + region + model_id is sufficient — no IAM keys needed."""
+        config = LLMConfig(
+            provider="bedrock",
+            aws_region="us-east-1",
+            aws_bearer_token_bedrock="token-abc",
+            bedrock_model_id="us.anthropic.claude-sonnet-4-20250514-v1:0",
+        )
+        assert config.provider == "bedrock"
+        assert config.aws_bearer_token_bedrock == "token-abc"
+
+    def test_bedrock_bearer_token_without_region_fails(self):
+        """Region is still required even with bearer token."""
+        with pytest.raises(ValueError, match="AWS_REGION"):
+            LLMConfig(
+                provider="bedrock",
+                aws_bearer_token_bedrock="token-abc",
+                bedrock_model_id="us.anthropic.claude-sonnet-4-20250514-v1:0",
+            )
+
+    def test_bedrock_bearer_token_without_model_fails(self):
+        """Model ID is still required even with bearer token."""
+        with pytest.raises(ValueError, match="BEDROCK_MODEL_ID"):
+            LLMConfig(
+                provider="bedrock",
+                aws_region="us-east-1",
+                aws_bearer_token_bedrock="token-abc",
+            )
+
+    def test_bedrock_no_credentials_at_all_fails(self):
+        """Must have either bearer token or IAM keys."""
+        with pytest.raises(ValueError, match="AWS_ACCESS_KEY_ID"):
+            LLMConfig(
+                provider="bedrock",
+                aws_region="us-east-1",
+                bedrock_model_id="us.anthropic.claude-sonnet-4-20250514-v1:0",
+            )
+
     def test_anthropic_valid(self):
         config = LLMConfig(provider="anthropic", anthropic_api_key="sk-test")
         assert config.provider == "anthropic"
@@ -105,6 +143,18 @@ class TestLLMConfigFromEnv:
         config = LLMConfig.from_env()
         assert config.provider == "anthropic"
         assert config.anthropic_api_key == "sk-test"
+
+    def test_from_env_bedrock_bearer_token(self, monkeypatch):
+        monkeypatch.setenv("LLM_PROVIDER", "bedrock")
+        monkeypatch.setenv("AWS_REGION", "us-east-1")
+        monkeypatch.setenv("AWS_BEARER_TOKEN_BEDROCK", "token-abc")
+        monkeypatch.setenv("BEDROCK_MODEL_ID", "us.anthropic.claude-sonnet-4-20250514-v1:0")
+        monkeypatch.delenv("AWS_ACCESS_KEY_ID", raising=False)
+        monkeypatch.delenv("AWS_SECRET_ACCESS_KEY", raising=False)
+
+        config = LLMConfig.from_env()
+        assert config.provider == "bedrock"
+        assert config.aws_bearer_token_bedrock == "token-abc"
 
     def test_from_env_defaults_to_bedrock(self, monkeypatch):
         monkeypatch.delenv("LLM_PROVIDER", raising=False)
