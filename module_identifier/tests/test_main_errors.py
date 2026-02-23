@@ -7,25 +7,39 @@ from mcp import McpError
 from mcp.types import ErrorData
 
 from module_identifier.__main__ import main
+from module_identifier.config import ContrastConfig
+from module_identifier.llm import LLMConfig
+
+
+# -- Fixtures --
+
+
+_CONTRAST_CONFIG = ContrastConfig(
+    host_name="h", api_key="k", service_key="s", username="u", org_id="o",
+)
+_LLM_CONFIG = LLMConfig(
+    provider="anthropic", model_name="claude-sonnet-4-5", anthropic_api_key="test",
+)
 
 
 # -- Helpers --
 
 
-def _set_env(monkeypatch):
-    """Set dummy env vars for Contrast + LLM config."""
-    monkeypatch.setenv("CONTRAST_HOST_NAME", "h")
-    monkeypatch.setenv("CONTRAST_API_KEY", "k")
-    monkeypatch.setenv("CONTRAST_SERVICE_KEY", "s")
-    monkeypatch.setenv("CONTRAST_USERNAME", "u")
-    monkeypatch.setenv("CONTRAST_ORG_ID", "o")
-    monkeypatch.setenv("AGENT_MODEL", "anthropic/claude-sonnet-4-5")
-    monkeypatch.setenv("ANTHROPIC_API_KEY", "test")
+def _patch_configs(monkeypatch):
+    """Patch config constructors to bypass .env file reads."""
+    monkeypatch.setattr(
+        "module_identifier.__main__.ContrastConfig.from_env",
+        staticmethod(lambda: _CONTRAST_CONFIG),
+    )
+    monkeypatch.setattr(
+        "module_identifier.__main__.LLMConfig.from_env",
+        staticmethod(lambda: _LLM_CONFIG),
+    )
 
 
 def _run_main_single_error(monkeypatch, capsys):
     """Run main() expecting SystemExit, return (exit_code, stderr)."""
-    _set_env(monkeypatch)
+    _patch_configs(monkeypatch)
     monkeypatch.setattr("sys.argv", ["module_identifier", "--single", "/tmp/fakerepo"])
 
     with pytest.raises(SystemExit) as exc_info:
@@ -37,7 +51,7 @@ def _run_main_single_error(monkeypatch, capsys):
 
 def _run_main_single_ok(monkeypatch, capsys):
     """Run main() expecting normal return (no SystemExit)."""
-    _set_env(monkeypatch)
+    _patch_configs(monkeypatch)
     monkeypatch.setattr("sys.argv", ["module_identifier", "--single", "/tmp/fakerepo"])
     main()
     return capsys.readouterr()
