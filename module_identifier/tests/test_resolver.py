@@ -256,3 +256,51 @@ class TestResolveModules:
     def test_empty_modules(self):
         result = resolve_modules([], [])
         assert result == {}
+
+
+# --- Fork naming (AIML-475) ---
+
+
+class TestForkNaming:
+    """Forked repos keep upstream manifest names — scoring should still work."""
+
+    def test_manifest_name_matches_despite_fork_dir(self):
+        """Module name from pom.xml is 'employee-management' even in a fork dir."""
+        # The module name comes from the manifest, not the repo/dir name.
+        # A fork named 'employee-management-fork' still has artifactId=employee-management.
+        m = _module("employee-management", Manifest.POM_XML, Ecosystem.JAVA, path="employee-management-fork")
+        apps = [AppCandidate("id1", "employee-management", "Java")]
+
+        result = resolve_module(m, apps)
+        assert result is not None
+        assert result.app_id == "id1"
+        assert result.confidence == 1.0
+
+    def test_node_fork_keeps_package_name(self):
+        """Forked Node repo: package.json name unchanged, still matches."""
+        m = _module("billing-api", Manifest.PACKAGE_JSON, Ecosystem.NODE, path="billing-api-fork")
+        apps = [AppCandidate("id1", "billing-api", "Node")]
+
+        result = resolve_module(m, apps)
+        assert result is not None
+        assert result.app_id == "id1"
+        assert result.confidence == 1.0
+
+    def test_contrast_yaml_matches_regardless_of_repo_name(self):
+        """contrast_security.yaml overrides everything — fork dir name irrelevant."""
+        m = DiscoveredModule(
+            name="com.example:employee-management",
+            path="my-fork-of-employee-management",
+            manifest=Manifest.POM_XML,
+            ecosystem=Ecosystem.JAVA,
+            contrast_app_name="alex-employee-management",
+        )
+        apps = [
+            AppCandidate("id1", "employee-management", "Java"),
+            AppCandidate("id2", "alex-employee-management", "Java"),
+        ]
+
+        result = resolve_module(m, apps)
+        assert result is not None
+        assert result.app_id == "id2"
+        assert result.app_name == "alex-employee-management"
