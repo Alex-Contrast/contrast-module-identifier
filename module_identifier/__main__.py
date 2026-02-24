@@ -9,11 +9,14 @@ import time
 from pathlib import Path
 
 from dotenv import load_dotenv
+from mcp import McpError
 
 from .config import ContrastConfig
 from .identify import identify_repo
 from .llm import LLMConfig
 from .pipeline import run
+
+log = logging.getLogger(__name__)
 
 
 def main():
@@ -89,12 +92,42 @@ def main():
 
     if args.single:
         threshold = args.threshold if args.threshold is not None else 0.7
-        match = asyncio.run(identify_repo(
-            repo_path=repo_path,
-            config=contrast_config,
-            llm_config=llm_config,
-            confidence_threshold=threshold,
-        ))
+        try:
+            match = asyncio.run(identify_repo(
+                repo_path=repo_path,
+                config=contrast_config,
+                llm_config=llm_config,
+                confidence_threshold=threshold,
+            ))
+        except PermissionError:
+            print(f"Cannot read repository at {repo_path}.", file=sys.stderr)
+            log.debug("PermissionError for %s", repo_path, exc_info=True)
+            sys.exit(1)
+        except McpError as e:
+            print(f"Contrast API error: {e}", file=sys.stderr)
+            log.debug("McpError detail", exc_info=True)
+            sys.exit(1)
+        except TimeoutError:
+            print("Timeout connecting to Contrast.", file=sys.stderr)
+            log.debug("TimeoutError", exc_info=True)
+            sys.exit(1)
+        except ConnectionError as e:
+            print("Cannot connect to Contrast MCP server.", file=sys.stderr)
+            log.debug("ConnectionError detail: %s", e, exc_info=True)
+            sys.exit(1)
+        except OSError as e:
+            print(
+                "Cannot start Contrast MCP server. "
+                "Verify MCP_CONTRAST_JAR_PATH or that Java/Docker is installed.",
+                file=sys.stderr,
+            )
+            log.debug("OSError detail: %s", e, exc_info=True)
+            sys.exit(1)
+        except Exception as e:
+            print(f"Unexpected error: {type(e).__name__}: {e}", file=sys.stderr)
+            log.debug("Unexpected exception", exc_info=True)
+            sys.exit(1)
+
         elapsed_ms = (time.time() - t0) * 1000
 
         output = {
