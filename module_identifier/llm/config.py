@@ -5,7 +5,9 @@ from typing import Optional
 
 from dotenv import dotenv_values
 
-VALID_PROVIDERS = ("bedrock", "anthropic", "gemini")
+VALID_PROVIDERS = ("contrast", "bedrock", "anthropic", "gemini")
+
+DEFAULT_CONTRAST_MODEL = "us.anthropic.claude-sonnet-4-5-20250929-v1:0"
 
 
 @dataclass(frozen=True)
@@ -16,6 +18,7 @@ class LLMConfig:
     are validated at construction time.
 
     AGENT_MODEL uses provider-prefixed format matching SmartFix/LiteLLM:
+        contrast/claude-sonnet-4-5          (default when AGENT_MODEL unset)
         bedrock/us.anthropic.claude-sonnet-4-5-20250929-v1:0
         anthropic/claude-sonnet-4-5
         gemini/gemini-2.0-flash
@@ -61,12 +64,10 @@ class LLMConfig:
 
         agent_model = env.get("AGENT_MODEL", "")
         if not agent_model:
-            raise ValueError(
-                "AGENT_MODEL is required. Use provider/model format, e.g. "
-                "'bedrock/us.anthropic.claude-sonnet-4-5-20250929-v1:0'"
-            )
-
-        provider, model_name = _parse_agent_model(agent_model)
+            # Default to Contrast LLM — no extra credentials needed
+            provider, model_name = "contrast", DEFAULT_CONTRAST_MODEL
+        else:
+            provider, model_name = _parse_agent_model(agent_model)
 
         config = cls(
             provider=provider,
@@ -86,7 +87,10 @@ class LLMConfig:
         """Validate that required credentials exist for the selected provider."""
         if not self.model_name:
             raise ValueError("model_name is required")
-        if self.provider == "bedrock":
+        if self.provider == "contrast":
+            # Auth comes from ContrastConfig, not LLMConfig — nothing to validate here
+            return
+        elif self.provider == "bedrock":
             # Region is always required regardless of auth method
             if not self.aws_region_name:
                 raise ValueError("Bedrock requires: AWS_REGION_NAME")
