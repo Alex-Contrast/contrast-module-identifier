@@ -19,6 +19,18 @@ from .pipeline import run
 log = logging.getLogger(__name__)
 
 
+def _no_match_guidance(config: ContrastConfig) -> str:
+    host = config.host_name.rstrip("/")
+    org_id = config.org_id
+    return (
+        "Set CONTRAST_APP_ID manually:\n"
+        f"  1. Browse your applications: https://{host}/Contrast/static/ng/index.html#/{org_id}/applications\n"
+        "  2. Select your application\n"
+        "  3. The ID is the UUID after applications/ in the URL\n"
+        "     e.g. applications/057254e6-f065-40fa-8197-e1d7ace10e67"
+    )
+
+
 def main():
     load_dotenv()
 
@@ -130,14 +142,28 @@ def main():
 
         elapsed_ms = (time.time() - t0) * 1000
 
-        output = {
-            "repo_path": repo_path,
-            "app_id": match.app_id if match else None,
-            "app_name": match.app_name if match else None,
-            "confidence": match.confidence if match else None,
-            "source": match.source if match else None,
-            "execution_time_ms": round(elapsed_ms, 1),
-        }
+        if match:
+            output = {
+                "status": "matched",
+                "repo_path": repo_path,
+                "app_id": match.app_id,
+                "app_name": match.app_name,
+                "confidence": match.confidence,
+                "source": match.source,
+                "execution_time_ms": round(elapsed_ms, 1),
+            }
+        else:
+            guidance = _no_match_guidance(contrast_config)
+            output = {
+                "status": "no_match",
+                "repo_path": repo_path,
+                "app_id": None,
+                "app_name": None,
+                "confidence": None,
+                "source": None,
+                "guidance": guidance,
+                "execution_time_ms": round(elapsed_ms, 1),
+            }
     else:
         threshold = args.threshold if args.threshold is not None else 0.5
         result = asyncio.run(run(
@@ -183,6 +209,11 @@ def main():
         app_id = output.get("app_id") or ""
         Path(args.output_env).write_text(f"APP_ID={app_id}\n")
         print(f"Env written to {args.output_env}", file=sys.stderr)
+
+    if args.single and not match:
+        print(f"\nNo matching Contrast application found.\n", file=sys.stderr)
+        print(_no_match_guidance(contrast_config), file=sys.stderr)
+        sys.exit(1)
 
 
 if __name__ == "__main__":

@@ -260,6 +260,46 @@ class TestIdentifyRepo:
         result = await identify_repo(tmp_path, config, llm_config)
         assert result is None
 
+    @patch("module_identifier.llm.agent.resolve_module")
+    @patch("module_identifier.identify.ContrastMCP")
+    @patch("module_identifier.identify.discover_modules")
+    async def test_llm_low_confidence_returns_none(self, mock_discover, mock_mcp_cls, mock_llm, tmp_path, config, llm_config):
+        """LLM returning LOW confidence is treated as no match."""
+        mock_discover.return_value = [_module("xyz-service")]
+        mock_mcp_cls.return_value = _mock_mcp([_candidate("abc-app")])
+
+        from module_identifier.llm.models import LLMMatch
+        mock_llm.return_value = LLMMatch(
+            application_id="app-99",
+            application_name="Maybe This",
+            confidence="LOW",
+            reasoning="Not very sure",
+        )
+
+        result = await identify_repo(tmp_path, config, llm_config)
+        assert result is None
+
+    @patch("module_identifier.llm.agent.resolve_module")
+    @patch("module_identifier.identify.ContrastMCP")
+    @patch("module_identifier.identify.discover_modules")
+    async def test_llm_medium_confidence_accepted(self, mock_discover, mock_mcp_cls, mock_llm, tmp_path, config, llm_config):
+        """LLM returning MEDIUM confidence is accepted."""
+        mock_discover.return_value = [_module("xyz-service")]
+        mock_mcp_cls.return_value = _mock_mcp([_candidate("abc-app")])
+
+        from module_identifier.llm.models import LLMMatch
+        mock_llm.return_value = LLMMatch(
+            application_id="app-99",
+            application_name="XYZ Service",
+            confidence="MEDIUM",
+            reasoning="Likely match",
+        )
+
+        result = await identify_repo(tmp_path, config, llm_config)
+        assert result is not None
+        assert result.app_id == "app-99"
+        assert result.confidence == 0.80
+
     @patch("module_identifier.identify.ContrastMCP")
     @patch("module_identifier.identify.discover_modules")
     async def test_contrast_yaml_skips_ambiguity(self, mock_discover, mock_mcp_cls, tmp_path, config, llm_config):

@@ -160,6 +160,12 @@ async def identify_repo(
     )
 
     if llm_match:
+        if llm_match.confidence == "LOW":
+            log.info(
+                "LLM returned LOW confidence for %s → %s — treating as no match",
+                target.name, llm_match.application_name,
+            )
+            return None
         return AppMatch(
             module=target,
             app_id=llm_match.application_id,

@@ -6,7 +6,7 @@ import pytest
 from mcp import McpError
 from mcp.types import ErrorData
 
-from module_identifier.__main__ import main
+from module_identifier.__main__ import main, _no_match_guidance
 from module_identifier.config import ContrastConfig
 from module_identifier.llm import LLMConfig
 
@@ -152,21 +152,14 @@ class TestUnexpectedErrors:
 # -- Edge case tests (no crash) --
 
 
-class TestNoMatchNoCrash:
-    @patch("module_identifier.__main__.identify_repo")
-    def test_empty_repo_no_crash(self, mock_identify, monkeypatch, capsys):
-        """Empty repo: identify_repo returns None, CLI completes normally."""
-        mock_identify.return_value = None
-        _run_main_single_ok(monkeypatch, capsys)
+class TestNoMatchGracefulExit:
+    _EXPECTED_GUIDANCE = _no_match_guidance(_CONTRAST_CONFIG)
 
     @patch("module_identifier.__main__.identify_repo")
-    def test_zero_candidates_no_crash(self, mock_identify, monkeypatch, capsys):
-        """Uninstrumented app: modules found but no Contrast apps → None, no crash."""
+    def test_exits_1_with_guidance(self, mock_identify, monkeypatch, capsys):
+        """No match: CLI exits 1 with full guidance message."""
         mock_identify.return_value = None
-        _run_main_single_ok(monkeypatch, capsys)
-
-    @patch("module_identifier.__main__.identify_repo")
-    def test_candidates_no_match_no_crash(self, mock_identify, monkeypatch, capsys):
-        """Candidates exist but none match → None, no crash."""
-        mock_identify.return_value = None
-        _run_main_single_ok(monkeypatch, capsys)
+        code, stderr = _run_main_single_error(monkeypatch, capsys)
+        assert code == 1
+        assert "No matching Contrast application found." in stderr
+        assert self._EXPECTED_GUIDANCE in stderr

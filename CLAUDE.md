@@ -20,7 +20,10 @@ pip install -e ".[dev]"
 # Run tests
 pytest module_identifier/tests/ -q
 
-# Run the CLI
+# Run the CLI (EA mode — single app per repo, what SmartFix uses)
+python -m module_identifier /path/to/repo --single
+
+# Run the CLI (GA mode — module-level resolution)
 python -m module_identifier /path/to/repo
 
 # CLI options: --threshold 0.5, --depth 4, --debug, -o/--output FILE, --single
