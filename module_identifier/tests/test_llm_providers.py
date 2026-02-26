@@ -148,7 +148,7 @@ class TestContrastModelCreation:
 
         mock_client_cls.assert_called_once_with(
             api_key="test-api-key",
-            base_url="https://app.contrastsecurity.com/api/llm-proxy/v2/anthropic",
+            base_url="https://app.contrastsecurity.com/api/llm-proxy/v2/organizations/test-org-id/anthropic",
             default_headers={
                 "API-Key": "test-api-key",
                 "Authorization": expected_auth,
@@ -175,4 +175,4 @@ class TestContrastModelCreation:
         _create_contrast_model(config, cc)
 
         call_kwargs = mock_client_cls.call_args[1]
-        assert call_kwargs["base_url"] == "https://app.contrastsecurity.com/api/llm-proxy/v2/anthropic"
+        assert call_kwargs["base_url"] == "https://app.contrastsecurity.com/api/llm-proxy/v2/organizations/test-org-id/anthropic"

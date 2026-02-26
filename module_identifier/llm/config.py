@@ -18,10 +18,12 @@ class LLMConfig:
     are validated at construction time.
 
     AGENT_MODEL uses provider-prefixed format matching SmartFix/LiteLLM:
-        contrast/claude-sonnet-4-5          (default when AGENT_MODEL unset)
         bedrock/us.anthropic.claude-sonnet-4-5-20250929-v1:0
         anthropic/claude-sonnet-4-5
         gemini/gemini-2.0-flash
+
+    When AGENT_MODEL is unset, defaults to the contrast provider with
+    us.anthropic.claude-sonnet-4-5-20250929-v1:0 routed through the Contrast LLM proxy.
     """
 
     provider: str

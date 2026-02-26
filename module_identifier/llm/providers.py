@@ -97,7 +97,7 @@ def _create_contrast_model(config: LLMConfig, contrast_config: ContrastConfig) -
     ).decode()
 
     host = contrast_config.host_name.rstrip("/")
-    base_url = f"https://{host}/api/llm-proxy/v2/anthropic"
+    base_url = f"https://{host}/api/llm-proxy/v2/organizations/{contrast_config.org_id}/anthropic"
 
     client = AsyncAnthropic(
         api_key=contrast_config.api_key,

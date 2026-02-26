@@ -21,9 +21,9 @@ class TestParseAgentModel:
         assert model == "gemini-2.0-flash"
 
     def test_contrast(self):
-        provider, model = _parse_agent_model("contrast/claude-sonnet-4-5")
+        provider, model = _parse_agent_model("contrast/us.anthropic.claude-sonnet-4-5-20250929-v1:0")
         assert provider == "contrast"
-        assert model == "claude-sonnet-4-5"
+        assert model == "us.anthropic.claude-sonnet-4-5-20250929-v1:0"
 
     def test_case_insensitive_provider(self):
         provider, model = _parse_agent_model("Bedrock/some-model")

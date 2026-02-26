@@ -116,6 +116,82 @@ Test strategy:
 
 pytest is configured with `asyncio_mode = "auto"` in pyproject.toml.
 
+## E2E Verification (Contrast LLM Proxy)
+
+Verifies the full pipeline end-to-end through the Contrast LLM proxy, including balance debit.
+
+### Prerequisites
+
+- Docker network `aiml-network` with `aiml-mysql` running (from aiml-services docker-compose)
+- AWS Bedrock credentials in your shell environment (`AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_SESSION_TOKEN`)
+- Contrast credentials in `.env`
+
+### 1. Start the LLM proxy
+
+```bash
+docker stop aiml-llm-proxy-api 2>/dev/null; docker rm aiml-llm-proxy-api 2>/dev/null
+
+docker run -d --name aiml-llm-proxy-api \
+  --network aiml-network \
+  -p 9020:9020 -p 36006:16006 \
+  -e SERVER_PORT=9020 \
+  -e CONTRAST_ENVIRONMENT=local \
+  -e MYSQL_HOST=aiml-mysql \
+  -e MYSQL_PORT=3306 \
+  -e MYSQL_SCHEMA=aiml_llm_proxy_api \
+  -e SPRING_PROFILES_ACTIVE=docker,local \
+  -e V2ENABLED=true \
+  -e AWS_ACCESS_KEY_ID="$AWS_ACCESS_KEY_ID" \
+  -e AWS_SECRET_ACCESS_KEY="$AWS_SECRET_ACCESS_KEY" \
+  -e AWS_SESSION_TOKEN="$AWS_SESSION_TOKEN" \
+  -e AWS_REGION=us-east-1 \
+  contrastsecurity-docker.jfrog.io/aiml-llm-proxy-api:local
+```
+
+Health check: `curl http://localhost:9020/actuator/health`
+
+### 2. Run module-identifier
+
+```bash
+# Unset AGENT_MODEL to use contrast provider default
+python -m module_identifier /path/to/test/repo
+```
+
+Known test repos: `~/dev/aiml/whackthecat`, `~/dev/employee-management`
+
+### 3. Verify org debit in MySQL
+
+```bash
+mysql -h localhost -P 13306 -u contrast -p'default1!' aiml_llm_proxy_api
+```
+
+```sql
+-- Recent balance transactions (org_id is BINARY(16) UUID)
+SELECT HEX(organization_id) AS org_id, transaction_type,
+       amount_nano_usd, balance_before_nano_usd, balance_after_nano_usd,
+       request_id, created_at
+FROM llm_balance_transaction
+ORDER BY created_at DESC LIMIT 10;
+
+-- Token usage per request
+SELECT HEX(organization_id) AS org_id, user_id, model,
+       input_tokens, output_tokens, cost_nano_usd, created_at
+FROM llm_token_usage
+ORDER BY created_at DESC LIMIT 10;
+
+-- Current balance per org
+SELECT HEX(organization_id) AS org_id, balance_nano_usd, updated_at
+FROM llm_organization_balance;
+```
+
+### LLM Proxy Architecture Notes
+
+- **Proxy URL pattern**: `https://{host}/api/llm-proxy/v2/organizations/{org_id}/anthropic` (matches contrast-triage)
+- **API format**: Anthropic Messages API only — backed by AWS Bedrock
+- **Supported models**: Claude (haiku-4-5, sonnet-4-5, sonnet-4-6, opus-4-5, opus-4-6) + Amazon Nova
+- **v1 vs v2**: v1 hardcodes model from server config (legacy SmartFix). v2 respects client's model choice and tracks balance.
+- **No OpenAI/Azure**: The proxy is Anthropic-format only. SmartFix accepts Azure keys in config but never uses them.
+
 ## Code Conventions
 
 - Standard Python package layout with `pyproject.toml` (PEP 517)
