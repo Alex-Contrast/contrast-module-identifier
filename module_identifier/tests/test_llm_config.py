@@ -1,7 +1,7 @@
 """Tests for LLM configuration."""
 
 import pytest
-from module_identifier.llm.config import LLMConfig, _parse_agent_model
+from module_identifier.llm.config import LLMConfig, _parse_agent_model, DEFAULT_CONTRAST_MODEL
 
 
 class TestParseAgentModel:
@@ -19,6 +19,11 @@ class TestParseAgentModel:
         provider, model = _parse_agent_model("gemini/gemini-2.0-flash")
         assert provider == "gemini"
         assert model == "gemini-2.0-flash"
+
+    def test_contrast(self):
+        provider, model = _parse_agent_model("contrast/us.anthropic.claude-sonnet-4-5-20250929-v1:0")
+        assert provider == "contrast"
+        assert model == "us.anthropic.claude-sonnet-4-5-20250929-v1:0"
 
     def test_case_insensitive_provider(self):
         provider, model = _parse_agent_model("Bedrock/some-model")
@@ -126,6 +131,11 @@ class TestLLMConfigValidation:
         with pytest.raises(ValueError, match="GEMINI_API_KEY"):
             LLMConfig(provider="gemini", model_name="gemini-2.0-flash")
 
+    def test_contrast_valid(self):
+        config = LLMConfig(provider="contrast", model_name="claude-sonnet-4-5")
+        assert config.provider == "contrast"
+        assert config.model_name == "claude-sonnet-4-5"
+
     def test_unknown_provider(self):
         with pytest.raises(ValueError, match="Unknown provider"):
             LLMConfig(provider="openai", model_name="gpt-4")
@@ -185,10 +195,19 @@ class TestLLMConfigFromEnv:
         assert config.provider == "gemini"
         assert config.model_name == "gemini-2.0-flash"
 
-    def test_from_env_missing_agent_model(self, monkeypatch):
+    def test_from_env_missing_agent_model_defaults_to_contrast(self, monkeypatch):
         _mock_dotenv({})(monkeypatch)
-        with pytest.raises(ValueError, match="AGENT_MODEL is required"):
-            LLMConfig.from_env()
+        config = LLMConfig.from_env()
+        assert config.provider == "contrast"
+        assert config.model_name == DEFAULT_CONTRAST_MODEL
+
+    def test_from_env_explicit_contrast(self, monkeypatch):
+        _mock_dotenv({
+            "AGENT_MODEL": f"contrast/{DEFAULT_CONTRAST_MODEL}",
+        })(monkeypatch)
+        config = LLMConfig.from_env()
+        assert config.provider == "contrast"
+        assert config.model_name == DEFAULT_CONTRAST_MODEL
 
     def test_from_env_debug_flag(self, monkeypatch):
         _mock_dotenv({

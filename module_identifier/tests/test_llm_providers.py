@@ -2,14 +2,40 @@
 
 import pytest
 from unittest.mock import patch, MagicMock
-from module_identifier.llm.config import LLMConfig
+from module_identifier.config import ContrastConfig
+from module_identifier.llm.config import LLMConfig, DEFAULT_CONTRAST_MODEL
 from module_identifier.llm.providers import get_model
+
+
+def _make_contrast_config(**overrides):
+    defaults = dict(
+        host_name="app.contrastsecurity.com",
+        api_key="test-api-key",
+        service_key="test-service-key",
+        username="test-user",
+        org_id="test-org-id",
+    )
+    defaults.update(overrides)
+    return ContrastConfig(**defaults)
 
 
 class TestGetModel:
     def test_unknown_provider_raises(self):
         with pytest.raises(ValueError, match="Unknown provider"):
             LLMConfig(provider="unknown", model_name="x")
+
+    @patch("module_identifier.llm.providers._create_contrast_model")
+    def test_contrast_dispatch(self, mock_create):
+        mock_create.return_value = MagicMock()
+        config = LLMConfig(provider="contrast", model_name=DEFAULT_CONTRAST_MODEL)
+        cc = _make_contrast_config()
+        get_model(config, contrast_config=cc)
+        mock_create.assert_called_once_with(config, cc)
+
+    def test_contrast_without_contrast_config_raises(self):
+        config = LLMConfig(provider="contrast", model_name=DEFAULT_CONTRAST_MODEL)
+        with pytest.raises(ValueError, match="requires ContrastConfig"):
+            get_model(config)
 
     @patch("module_identifier.llm.providers._create_bedrock_model")
     def test_bedrock_dispatch(self, mock_create):
@@ -102,3 +128,51 @@ class TestBedrockModelCreation:
         mock_provider_cls.assert_called_once_with(
             bedrock_client=mock_session_cls.return_value.client.return_value,
         )
+
+
+class TestContrastModelCreation:
+    @patch("anthropic.AsyncAnthropic")
+    @patch("pydantic_ai.providers.anthropic.AnthropicProvider")
+    @patch("pydantic_ai.models.anthropic.AnthropicModel")
+    def test_creates_client_with_correct_base_url_and_headers(
+        self, mock_model_cls, mock_provider_cls, mock_client_cls
+    ):
+        from module_identifier.llm.providers import _create_contrast_model
+
+        config = LLMConfig(provider="contrast", model_name=DEFAULT_CONTRAST_MODEL)
+        cc = _make_contrast_config()
+        _create_contrast_model(config, cc)
+
+        import base64
+        expected_auth = base64.b64encode(b"test-user:test-service-key").decode()
+
+        mock_client_cls.assert_called_once_with(
+            api_key="test-api-key",
+            base_url="https://app.contrastsecurity.com/api/llm-proxy/v2/organizations/test-org-id/anthropic",
+            default_headers={
+                "API-Key": "test-api-key",
+                "Authorization": expected_auth,
+            },
+        )
+        mock_provider_cls.assert_called_once_with(
+            anthropic_client=mock_client_cls.return_value,
+        )
+        mock_model_cls.assert_called_once_with(
+            model_name=DEFAULT_CONTRAST_MODEL,
+            provider=mock_provider_cls.return_value,
+        )
+
+    @patch("anthropic.AsyncAnthropic")
+    @patch("pydantic_ai.providers.anthropic.AnthropicProvider")
+    @patch("pydantic_ai.models.anthropic.AnthropicModel")
+    def test_strips_trailing_slash_from_host(
+        self, mock_model_cls, mock_provider_cls, mock_client_cls
+    ):
+        from module_identifier.llm.providers import _create_contrast_model
+
+        config = LLMConfig(provider="contrast", model_name=DEFAULT_CONTRAST_MODEL)
+        cc = _make_contrast_config(host_name="app.contrastsecurity.com/")
+        _create_contrast_model(config, cc)
+
+        call_kwargs = mock_client_cls.call_args[1]
+        assert call_kwargs["base_url"] == "https://app.contrastsecurity.com/api/llm-proxy/v2/organizations/test-org-id/anthropic"

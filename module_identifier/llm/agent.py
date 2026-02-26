@@ -185,7 +185,7 @@ async def resolve_module(
     )
 
     # Create model and toolsets
-    model = get_model(llm_config)
+    model = get_model(llm_config, contrast_config=contrast_config)
     toolsets = await create_mcp_toolsets(contrast_config, repo_path, jar_path)
 
     agent = Agent(
