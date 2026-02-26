@@ -53,7 +53,7 @@ class TestOutputEnv:
             sys.argv = ["prog", str(tmp_path), "--single", "--output-env", str(env_file)]
             main()
 
-        assert env_file.read_text() == "APP_ID=abc-123\n"
+        assert env_file.read_text() == "CONTRAST_APP_ID=abc-123\n"
 
     def test_no_match_writes_empty(self, tmp_path, env_vars):
         env_file = tmp_path / "result.env"
@@ -63,7 +63,41 @@ class TestOutputEnv:
             sys.argv = ["prog", str(tmp_path), "--single", "--output-env", str(env_file)]
             main()
 
-        assert env_file.read_text() == "APP_ID=\n"
+        assert env_file.read_text() == "CONTRAST_APP_ID=\n"
+
+    def test_github_env_written_on_match(self, tmp_path, env_vars, monkeypatch):
+        github_env_file = tmp_path / "github_env"
+        github_env_file.write_text("")
+        monkeypatch.setenv("GITHUB_ENV", str(github_env_file))
+        match = _match()
+
+        with patch("module_identifier.__main__.identify_repo", new_callable=AsyncMock, return_value=match):
+            from module_identifier.__main__ import main
+            sys.argv = ["prog", str(tmp_path), "--single"]
+            main()
+
+        assert "CONTRAST_APP_ID=abc-123\n" in github_env_file.read_text()
+
+    def test_github_env_not_written_on_no_match(self, tmp_path, env_vars, monkeypatch):
+        github_env_file = tmp_path / "github_env"
+        github_env_file.write_text("")
+        monkeypatch.setenv("GITHUB_ENV", str(github_env_file))
+
+        with patch("module_identifier.__main__.identify_repo", new_callable=AsyncMock, return_value=None):
+            from module_identifier.__main__ import main
+            sys.argv = ["prog", str(tmp_path), "--single"]
+            main()
+
+        assert github_env_file.read_text() == ""
+
+    def test_no_github_env_no_error(self, tmp_path, env_vars, monkeypatch):
+        monkeypatch.delenv("GITHUB_ENV", raising=False)
+        match = _match()
+
+        with patch("module_identifier.__main__.identify_repo", new_callable=AsyncMock, return_value=match):
+            from module_identifier.__main__ import main
+            sys.argv = ["prog", str(tmp_path), "--single"]
+            main()  # should not raise
 
     def test_without_single_fails(self, tmp_path):
         env_file = tmp_path / "result.env"

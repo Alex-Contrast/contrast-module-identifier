@@ -4,6 +4,7 @@ import argparse
 import asyncio
 import json
 import logging
+import os
 import sys
 import time
 from pathlib import Path
@@ -59,7 +60,7 @@ def main():
     )
     parser.add_argument(
         "--output-env",
-        help="Write APP_ID=<value> to file (for CI consumption)",
+        help="Write CONTRAST_APP_ID=<value> to file (for CI consumption)",
     )
     args = parser.parse_args()
 
@@ -181,8 +182,15 @@ def main():
 
     if args.output_env:
         app_id = output.get("app_id") or ""
-        Path(args.output_env).write_text(f"APP_ID={app_id}\n")
+        Path(args.output_env).write_text(f"CONTRAST_APP_ID={app_id}\n")
         print(f"Env written to {args.output_env}", file=sys.stderr)
+
+    # Auto-export to GitHub Actions when a match is found
+    github_env = os.environ.get("GITHUB_ENV")
+    if github_env and args.single and output.get("app_id"):
+        with open(github_env, "a") as f:
+            f.write(f"CONTRAST_APP_ID={output['app_id']}\n")
+        print(f"Exported CONTRAST_APP_ID to $GITHUB_ENV", file=sys.stderr)
 
 
 if __name__ == "__main__":
